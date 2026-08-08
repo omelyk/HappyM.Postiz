@@ -18,6 +18,7 @@ import { timer } from '@gitroom/helpers/utils/timer';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { WebhooksService } from '@gitroom/nestjs-libraries/database/prisma/webhooks/webhooks.service';
 import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
+import { createHappyMWebhookHeaders } from '@gitroom/nestjs-libraries/dtos/webhooks/webhook.signature';
 import { TypedSearchAttributes } from '@temporalio/common';
 import {
   organizationId,
@@ -390,6 +391,8 @@ export class PostActivity {
       }
 
       const post = await this._postService.getPostByForWebhookId(postId);
+      const payload = JSON.stringify(post);
+      const timestamp = Math.floor(Date.now() / 1000).toString();
       await Promise.all(
         webhooks.map(async (webhook) => {
           try {
@@ -400,8 +403,9 @@ export class PostActivity {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                ...createHappyMWebhookHeaders(payload, timestamp),
               },
-              body: JSON.stringify(post),
+              body: payload,
               // @ts-ignore — undici option, not in lib.dom fetch types
               dispatcher: getSsrfSafeDispatcher(),
             });

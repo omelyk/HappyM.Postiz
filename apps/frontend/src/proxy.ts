@@ -39,6 +39,28 @@ export async function proxy(request: NextRequest) {
     topResponse.headers.set(cookieName, lng);
   }
 
+  if (nextUrl.pathname === '/embed/happym/composer') {
+    const ticket = nextUrl.searchParams.get('ticket');
+    if (!authCookie && !ticket) {
+      return NextResponse.redirect(
+        new URL('/auth/login-required', nextUrl.href)
+      );
+    }
+
+    const allowedOrigins = (process.env.HAPPYM_EMBED_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+      .join(' ');
+    topResponse.headers.set(
+      'Content-Security-Policy',
+      `frame-ancestors 'self'${allowedOrigins ? ` ${allowedOrigins}` : ''}`
+    );
+    topResponse.headers.set('Referrer-Policy', 'no-referrer');
+    topResponse.headers.set('Cache-Control', 'no-store');
+    return topResponse;
+  }
+
   if (nextUrl.pathname.startsWith('/modal/') && !authCookie) {
     return NextResponse.redirect(new URL(`/auth/login-required`, nextUrl.href));
   }

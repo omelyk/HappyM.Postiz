@@ -409,12 +409,18 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       }
 
       if (!dummy) {
-        addEditSets
-          ? addEditSets(data)
-          : await fetch('/posts', {
-              method: 'POST',
-              body: JSON.stringify(data),
-            });
+        if (addEditSets) {
+          addEditSets(data);
+        } else {
+          const response = await fetch('/posts', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          });
+          if (props.onSaved) {
+            const createdPosts = await response.json();
+            props.onSaved(createdPosts, type);
+          }
+        }
 
         if (!addEditSets) {
           mutate();

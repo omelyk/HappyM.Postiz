@@ -6,7 +6,13 @@ import { usePathname } from 'next/navigation';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
-export const AppLayout = ({ children }: { children: ReactNode }) => {
+export const AppLayout = ({
+  children,
+  userPath,
+}: {
+  children: ReactNode;
+  userPath?: string;
+}) => {
   const params = usePathname();
   const style = useMemo(() => {
     const all = params.split('/');
@@ -27,7 +33,7 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
           }
         `}
       </style>
-      <PreviewWrapper>{children}</PreviewWrapper>
+      <PreviewWrapper userPath={userPath}>{children}</PreviewWrapper>
     </div>
   );
 };

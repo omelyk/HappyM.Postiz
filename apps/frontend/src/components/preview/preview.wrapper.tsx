@@ -9,13 +9,19 @@ import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { CopilotKit } from '@copilotkit/react-core';
 import { ToolTip } from '@gitroom/frontend/components/layout/top.tip';
-export const PreviewWrapper = ({ children }: { children: ReactNode }) => {
+export const PreviewWrapper = ({
+  children,
+  userPath = '/user/self',
+}: {
+  children: ReactNode;
+  userPath?: string;
+}) => {
   const fetch = useFetch();
   const { backendUrl } = useVariables();
   const load = useCallback(async (path: string) => {
     return await (await fetch(path)).json();
   }, []);
-  const { data: user } = useSWR('/user/self', load, {
+  const { data: user } = useSWR(userPath, load, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     revalidateIfStale: false,

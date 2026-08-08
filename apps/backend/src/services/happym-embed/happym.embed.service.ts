@@ -24,7 +24,7 @@ export class HappyMEmbedService {
 
   async exchangeTicket(
     ticket: string,
-    expectedPurpose: 'composer' | 'connect' = 'composer',
+    expectedPurpose?: 'composer' | 'connect',
     expectedProvider?: string
   ) {
     const exchangeUrl = process.env.HAPPYM_EMBED_EXCHANGE_URL;
@@ -152,11 +152,14 @@ export class HappyMEmbedService {
       throw new ForbiddenException('HappyM embed context is malformed');
     }
 
+    const hasValidProvider =
+      typeof context.provider === 'string' &&
+      /^[a-z0-9][a-z0-9-]{0,63}$/.test(context.provider);
     if (
-      context.purpose !== expectedPurpose ||
-      (expectedPurpose === 'connect' &&
-        (!expectedProvider || context.provider !== expectedProvider)) ||
-      (expectedPurpose === 'composer' && context.provider)
+      (context.purpose === 'connect' && !hasValidProvider) ||
+      (context.purpose === 'composer' && context.provider) ||
+      (expectedPurpose && context.purpose !== expectedPurpose) ||
+      (expectedProvider && context.provider !== expectedProvider)
     ) {
       throw new ForbiddenException('HappyM embed purpose is invalid');
     }

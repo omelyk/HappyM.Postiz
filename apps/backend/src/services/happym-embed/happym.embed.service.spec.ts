@@ -42,6 +42,7 @@ describe('HappyMEmbedService', () => {
     origin: 'https://crm.happym.test',
     correlationId: 'correlation-1',
     expiresAt: new Date(Date.now() + 30_000).toISOString(),
+    purpose: 'composer' as const,
   };
 
   beforeEach(() => {
@@ -112,6 +113,47 @@ describe('HappyMEmbedService', () => {
 
     await expect(
       service.exchangeTicket('opaque-ticket-value')
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('accepts an authoritative connect ticket without a browser purpose hint', async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...context,
+          purpose: 'connect',
+          provider: 'facebook',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const result = await service.exchangeTicket('opaque-connect-ticket');
+    const claims = verify(
+      result.embedSession,
+      process.env.HAPPYM_EMBED_SESSION_SECRET!
+    ) as HappyMEmbedSessionClaims;
+
+    expect(claims.purpose).toBe('connect');
+    expect(claims.provider).toBe('facebook');
+    expect(usersService.getUserById).toHaveBeenCalledWith(context.postizUserId);
+    expect(result.organizationId).toBe(context.postizOrganizationId);
+  });
+
+  it('rejects a browser purpose hint that conflicts with the ticket', async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...context,
+          purpose: 'connect',
+          provider: 'facebook',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    await expect(
+      service.exchangeTicket('opaque-connect-ticket', 'composer')
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 

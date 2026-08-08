@@ -23,10 +23,9 @@ export class HappyMEmbedExchangeController {
     @Body() body: ExchangeHappyMEmbedTicketDto,
     @Res({ passthrough: false }) response: Response
   ) {
-    const purpose = body.purpose || 'composer';
     const session = await this._happyMEmbedService.exchangeTicket(
       body.ticket,
-      purpose,
+      body.purpose,
       body.provider
     );
     const secured = !process.env.NOT_SECURED;
@@ -47,7 +46,7 @@ export class HappyMEmbedExchangeController {
     response.setHeader('Cache-Control', 'no-store');
     response.status(200).json({
       redirectUrl:
-        purpose === 'connect'
+        session.context.purpose === 'connect'
           ? `/embed/happym/connect?provider=${encodeURIComponent(
               session.context.provider!
             )}`

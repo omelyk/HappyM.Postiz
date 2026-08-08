@@ -1,5 +1,11 @@
 # HappyM change log
 
+## 1.0.0-alpha.5 - 2026-08-08
+
+- Fixed Connect exchange to derive purpose/provider from the authoritative CRM ticket.
+- Kept optional browser hints as consistency checks and preserved composer isolation.
+- Added regression coverage for minimal Connect exchange payloads and conflicting hints.
+
 ## 1.0.0-alpha.1 - Unreleased
 
 - Fork baseline pinned to Postiz v2.23.0.

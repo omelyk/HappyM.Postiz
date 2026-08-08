@@ -14,6 +14,7 @@ describe('HappyM embed tenant isolation', () => {
     origin: 'https://crm.happym.test',
     correlationId: 'correlation-a',
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    purpose: 'composer',
   };
 
   it('rejects pharmacy A attempting to use an integration for pharmacy B', () => {

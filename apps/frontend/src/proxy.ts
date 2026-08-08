@@ -13,6 +13,7 @@ acceptLanguage.languages(languages);
 // This function can be marked `async` if using `await` inside
 export async function proxy(request: NextRequest) {
   const nextUrl = request.nextUrl;
+  const applianceMode = process.env.HAPPYM_APPLIANCE_MODE === 'true';
   const authCookie =
     request.cookies.get('auth') ||
     request.headers.get('auth') ||
@@ -103,8 +104,12 @@ export async function proxy(request: NextRequest) {
 
   if (
     nextUrl.pathname.startsWith('/auth/register') &&
-    process.env.DISABLE_REGISTRATION === 'true'
+    (applianceMode || process.env.DISABLE_REGISTRATION === 'true')
   ) {
+    return NextResponse.redirect(new URL('/auth/login', nextUrl.href));
+  }
+
+  if (applianceMode && nextUrl.pathname === '/auth' && !authCookie) {
     return NextResponse.redirect(new URL('/auth/login', nextUrl.href));
   }
 

@@ -12,6 +12,8 @@ export default async function AuthLayout({
   children: ReactNode;
 }) {
   const t = await getT();
+  const applianceMode = process.env.HAPPYM_APPLIANCE_MODE === 'true';
+  const productName = process.env.HAPPYM_PRODUCT_NAME || 'Social Manager';
 
   return (
     <div className="bg-[#0E0E0E] flex flex-1 p-[12px] gap-[12px] min-h-screen w-screen text-white">
@@ -19,19 +21,27 @@ export default async function AuthLayout({
       <ReturnUrlComponent />
       <div className="flex flex-col py-[40px] px-[20px] flex-1 lg:w-[600px] lg:flex-none rounded-[12px] text-white p-[12px] bg-[#1A1919]">
         <div className="w-full max-w-[440px] mx-auto justify-center gap-[20px] h-full flex flex-col text-white">
-          <LogoTextComponent />
+          {applianceMode ? (
+            <div className="text-2xl font-semibold tracking-tight">
+              {productName}
+            </div>
+          ) : (
+            <LogoTextComponent />
+          )}
           <div className="flex">{children}</div>
         </div>
       </div>
-      <div className="text-[36px] flex-1 pt-[88px] hidden lg:flex flex-col items-center">
-        <div className="text-center">
-          Over <span className="text-[42px] text-[#FC69FF]">20,000+</span>{' '}
-          Entrepreneurs use
-          <br />
-          Postiz To Grow Their Social Presence
+      {!applianceMode && (
+        <div className="text-[36px] flex-1 pt-[88px] hidden lg:flex flex-col items-center">
+          <div className="text-center">
+            Over <span className="text-[42px] text-[#FC69FF]">20,000+</span>{' '}
+            Entrepreneurs use
+            <br />
+            Postiz To Grow Their Social Presence
+          </div>
+          <TestimonialComponent />
         </div>
-        <TestimonialComponent />
-      </div>
+      )}
     </div>
   );
 }

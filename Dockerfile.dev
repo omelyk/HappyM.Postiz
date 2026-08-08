@@ -1,6 +1,11 @@
 FROM node:22.20-bookworm-slim
 ARG NEXT_PUBLIC_VERSION
 ENV NEXT_PUBLIC_VERSION=$NEXT_PUBLIC_VERSION
+ENV HAPPYM_APPLIANCE_MODE=true \
+    DISABLE_REGISTRATION=true \
+    HAPPYM_PRODUCT_NAME="Social Manager" \
+    NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE=true \
+    NEXT_PUBLIC_HAPPYM_PRODUCT_NAME="Social Manager"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     make \

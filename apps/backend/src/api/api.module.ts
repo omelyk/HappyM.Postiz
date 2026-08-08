@@ -52,6 +52,12 @@ import {
 } from '@gitroom/backend/api/routes/happym.embed.controller';
 import { HappyMEmbedService } from '@gitroom/backend/services/happym-embed/happym.embed.service';
 import { HappyMEmbedMiddleware } from '@gitroom/backend/services/happym-embed/happym.embed.middleware';
+import {
+  HappyMApplianceController,
+  HappyMApplianceHealthController,
+} from '@gitroom/backend/api/routes/happym.appliance.controller';
+import { HappyMApplianceService } from '@gitroom/backend/services/happym-appliance/happym.appliance.service';
+import { HappyMApplianceMiddleware } from '@gitroom/backend/services/happym-appliance/happym.appliance.middleware';
 
 const authenticatedController = [
   UsersController,
@@ -87,6 +93,8 @@ const authenticatedController = [
     NoAuthIntegrationsController,
     OAuthController,
     HappyMEmbedExchangeController,
+    HappyMApplianceHealthController,
+    HappyMApplianceController,
     ...authenticatedController,
   ],
   providers: [
@@ -109,6 +117,8 @@ const authenticatedController = [
     OauthProvider,
     HappyMEmbedService,
     HappyMEmbedMiddleware,
+    HappyMApplianceService,
+    HappyMApplianceMiddleware,
   ],
   get exports() {
     return [...this.imports, ...this.providers];
@@ -119,5 +129,8 @@ export class ApiModule implements NestModule {
     consumer
       .apply(AuthMiddleware, HappyMEmbedMiddleware)
       .forRoutes(...authenticatedController);
+    consumer
+      .apply(HappyMApplianceMiddleware)
+      .forRoutes(HappyMApplianceController);
   }
 }

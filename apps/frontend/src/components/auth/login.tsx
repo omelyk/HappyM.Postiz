@@ -23,6 +23,8 @@ type Inputs = {
 };
 export function Login() {
   const t = useT();
+  const applianceMode =
+    process.env.NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE === 'true';
   const [loading, setLoading] = useState(false);
   const [notActivated, setNotActivated] = useState(false);
   const { isGeneral, neynarClientId, billingEnabled, genericOauth } =
@@ -69,29 +71,33 @@ export function Login() {
               {t('sign_in', 'Sign In')}
             </h1>
           </div>
-          <div className="text-[14px] mt-[32px] mb-[12px]">
-            {t('continue_with', 'Continue With')}
-          </div>
-          <div className="flex flex-col">
-            {isGeneral && genericOauth ? (
-              <OauthProvider />
-            ) : !isGeneral ? (
-              <GithubProvider />
-            ) : (
-              <div className="gap-[8px] flex">
-                <GoogleProvider />
-                {!!neynarClientId && <FarcasterProvider />}
-                {billingEnabled && <WalletProvider />}
-              </div>
-            )}
-            <div className="h-[20px] mb-[24px] mt-[24px] relative">
-              <div className="absolute w-full h-[1px] bg-fifth top-[50%] -translate-y-[50%]" />
-              <div
-                className={`absolute z-[1] justify-center items-center w-full start-0 -top-[4px] flex`}
-              >
-                <div className="px-[16px]">{t('or', 'or')}</div>
-              </div>
+          {!applianceMode && (
+            <div className="text-[14px] mt-[32px] mb-[12px]">
+              {t('continue_with', 'Continue With')}
             </div>
+          )}
+          <div className="flex flex-col">
+            {!applianceMode && (
+              <>
+                {isGeneral && genericOauth ? (
+                  <OauthProvider />
+                ) : !isGeneral ? (
+                  <GithubProvider />
+                ) : (
+                  <div className="gap-[8px] flex">
+                    <GoogleProvider />
+                    {!!neynarClientId && <FarcasterProvider />}
+                    {billingEnabled && <WalletProvider />}
+                  </div>
+                )}
+                <div className="h-[20px] mb-[24px] mt-[24px] relative">
+                  <div className="absolute w-full h-[1px] bg-fifth top-[50%] -translate-y-[50%]" />
+                  <div className="absolute z-[1] justify-center items-center w-full start-0 -top-[4px] flex">
+                    <div className="px-[16px]">{t('or', 'or')}</div>
+                  </div>
+                </div>
+              </>
+            )}
             <div className="flex flex-col gap-[12px]">
               <div className="text-textColor">
                 <Input
@@ -136,12 +142,15 @@ export function Login() {
                     {t('sign_in_1', 'Sign in')}
                   </Button>
                 </div>
-                <p className="mt-4 text-sm">
-                  {t('don_t_have_an_account', "Don't Have An Account?")}&nbsp;
-                  <Link href="/auth" className="underline cursor-pointer">
-                    {t('sign_up', 'Sign Up')}
-                  </Link>
-                </p>
+                {!applianceMode && (
+                  <p className="mt-4 text-sm">
+                    {t('don_t_have_an_account', "Don't Have An Account?")}
+                    &nbsp;
+                    <Link href="/auth" className="underline cursor-pointer">
+                      {t('sign_up', 'Sign Up')}
+                    </Link>
+                  </p>
+                )}
                 <p className="mt-4 text-sm">
                   <Link
                     href="/auth/forgot"

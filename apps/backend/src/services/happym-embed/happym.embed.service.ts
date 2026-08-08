@@ -22,7 +22,11 @@ export class HappyMEmbedService {
     private readonly _integrationService: IntegrationService
   ) {}
 
-  async exchangeTicket(ticket: string) {
+  async exchangeTicket(
+    ticket: string,
+    expectedPurpose: 'composer' | 'connect' = 'composer',
+    expectedProvider?: string
+  ) {
     const exchangeUrl = process.env.HAPPYM_EMBED_EXCHANGE_URL;
     const clientId = process.env.HAPPYM_EMBED_CLIENT_ID;
     const clientSecret = process.env.HAPPYM_EMBED_CLIENT_SECRET;
@@ -66,7 +70,7 @@ export class HappyMEmbedService {
     }
 
     const context = (await response.json()) as HappyMEmbedSessionContext;
-    await this.validateContext(context);
+    await this.validateContext(context, expectedPurpose, expectedProvider);
 
     const user = await this._usersService.getUserById(context.postizUserId);
     if (!user?.activated) {
@@ -121,7 +125,11 @@ export class HappyMEmbedService {
     };
   }
 
-  private async validateContext(context: HappyMEmbedSessionContext) {
+  private async validateContext(
+    context: HappyMEmbedSessionContext,
+    expectedPurpose: 'composer' | 'connect',
+    expectedProvider?: string
+  ) {
     const requiredStrings: Array<keyof HappyMEmbedSessionContext> = [
       'postizUserId',
       'postizOrganizationId',
@@ -138,9 +146,19 @@ export class HappyMEmbedService {
         (key) => typeof context[key] !== 'string' || !context[key]
       ) ||
       !Array.isArray(context.allowedIntegrationIds) ||
-      context.allowedIntegrationIds.some((id) => typeof id !== 'string')
+      context.allowedIntegrationIds.some((id) => typeof id !== 'string') ||
+      !['composer', 'connect'].includes(context.purpose)
     ) {
       throw new ForbiddenException('HappyM embed context is malformed');
+    }
+
+    if (
+      context.purpose !== expectedPurpose ||
+      (expectedPurpose === 'connect' &&
+        (!expectedProvider || context.provider !== expectedProvider)) ||
+      (expectedPurpose === 'composer' && context.provider)
+    ) {
+      throw new ForbiddenException('HappyM embed purpose is invalid');
     }
 
     const ticketExpiresAt = new Date(context.expiresAt).getTime();

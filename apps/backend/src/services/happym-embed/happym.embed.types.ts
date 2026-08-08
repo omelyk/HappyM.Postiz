@@ -10,6 +10,8 @@ export interface HappyMEmbedSessionContext {
   origin: string;
   correlationId: string;
   expiresAt: string;
+  purpose: 'composer' | 'connect';
+  provider?: string | null;
 }
 
 export interface HappyMEmbedSessionClaims extends HappyMEmbedSessionContext {

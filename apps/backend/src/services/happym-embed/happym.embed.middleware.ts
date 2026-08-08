@@ -8,16 +8,30 @@ import {
 
 @Injectable()
 export class HappyMEmbedMiddleware implements NestMiddleware {
-  private isAllowedEndpoint(req: Request) {
+  private isAllowedEndpoint(req: Request, claims: HappyMEmbedSessionClaims) {
     const method = req.method?.toUpperCase();
     const path = (req.originalUrl || req.path || '')
       .split('?')[0]
       .replace(/^\/api(?=\/)/, '')
       .replace(/\/$/, '');
 
-    const exactRoutes = new Set([
+    const commonRoutes = new Set([
       'GET /happym/embed-sessions/current',
       'GET /happym/embed-sessions/user',
+    ]);
+    if (commonRoutes.has(`${method} ${path}`)) {
+      return true;
+    }
+
+    if (claims.purpose === 'connect') {
+      return (
+        (method === 'GET' && /^\/integrations\/social\/[^/]+$/.test(path)) ||
+        (method === 'POST' &&
+          /^\/integrations\/provider\/[^/]+\/connect$/.test(path))
+      );
+    }
+
+    const composerRoutes = new Set([
       'GET /integrations/list',
       'POST /integrations/mentions',
       'POST /integrations/function',
@@ -37,7 +51,7 @@ export class HappyMEmbedMiddleware implements NestMiddleware {
     ]);
 
     return (
-      exactRoutes.has(`${method} ${path}`) ||
+      composerRoutes.has(`${method} ${path}`) ||
       (method === 'GET' && /^\/integrations\/[^/]+\/internal-plugs$/.test(path))
     );
   }
@@ -73,7 +87,7 @@ export class HappyMEmbedMiddleware implements NestMiddleware {
       }
 
       requestWithContext.happyMEmbedContext = claims;
-      if (!this.isAllowedEndpoint(req)) {
+      if (!this.isAllowedEndpoint(req, claims)) {
         throw new Error('Endpoint is not available to HappyM embed sessions');
       }
       next();

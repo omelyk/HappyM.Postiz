@@ -1,6 +1,10 @@
 # HappyM Social Manager appliance control plane
 
-Versione contratto: `1.0.0-alpha.3`.
+Versione contratto: `1.0.0-alpha.4`.
+
+## Connect OAuth presidiato
+
+La landing `GET /embed/happym/connect?ticket=...&provider=facebook` scambia il ticket attraverso `/happym/embed-sessions/exchange` con `purpose=connect`, imposta la sessione browser dell'utente tecnico della farmacia e avvia il flusso nativo `/integrations/social/{provider}`. Il purpose e il provider restituiti dal CRM devono coincidere con la richiesta iniziale; la sessione connect può accedere soltanto alle route OAuth necessarie e non alle route composer o dashboard.
 
 La modalità presidiata richiede `HAPPYM_APPLIANCE_MODE=true`, un amministratore locale di bootstrap e le credenziali M2M `HAPPYM_APPLIANCE_INTERNAL_CLIENT_ID` / `HAPPYM_APPLIANCE_INTERNAL_CLIENT_SECRET`. Il bootstrap è idempotente e crea l'organizzazione di sistema, l'amministratore e una API key di servizio. Nessun segreto viene scritto nei log.
 

@@ -40,7 +40,10 @@ export async function proxy(request: NextRequest) {
     topResponse.headers.set(cookieName, lng);
   }
 
-  if (nextUrl.pathname === '/embed/happym/composer') {
+  if (
+    nextUrl.pathname === '/embed/happym/composer' ||
+    nextUrl.pathname === '/embed/happym/connect'
+  ) {
     const ticket = nextUrl.searchParams.get('ticket');
     if (!authCookie && !ticket) {
       return NextResponse.redirect(

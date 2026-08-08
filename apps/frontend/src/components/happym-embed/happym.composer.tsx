@@ -12,6 +12,7 @@ type EmbedSession = {
   pharmacyId: string;
   correlationId: string;
   expiresAt: string;
+  purpose: 'composer' | 'connect';
 };
 
 type EmbedEnvelope = {
@@ -70,7 +71,7 @@ export const HappyMComposer: FC = () => {
           throw new Error(`Session validation failed (${response.status})`);
         }
         const current = (await response.json()) as EmbedSession;
-        if (!current.active) {
+        if (!current.active || current.purpose !== 'composer') {
           throw new Error('No active HappyM embed session');
         }
         setSession(current);

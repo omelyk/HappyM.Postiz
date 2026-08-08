@@ -23,7 +23,12 @@ export class HappyMEmbedExchangeController {
     @Body() body: ExchangeHappyMEmbedTicketDto,
     @Res({ passthrough: false }) response: Response
   ) {
-    const session = await this._happyMEmbedService.exchangeTicket(body.ticket);
+    const purpose = body.purpose || 'composer';
+    const session = await this._happyMEmbedService.exchangeTicket(
+      body.ticket,
+      purpose,
+      body.provider
+    );
     const secured = !process.env.NOT_SECURED;
     const cookieOptions = {
       path: '/',
@@ -41,7 +46,12 @@ export class HappyMEmbedExchangeController {
     response.cookie(HAPPYM_EMBED_COOKIE, session.embedSession, cookieOptions);
     response.setHeader('Cache-Control', 'no-store');
     response.status(200).json({
-      redirectUrl: '/embed/happym/composer',
+      redirectUrl:
+        purpose === 'connect'
+          ? `/embed/happym/connect?provider=${encodeURIComponent(
+              session.context.provider!
+            )}`
+          : '/embed/happym/composer',
       expiresAt: session.context.expiresAt,
       correlationId: session.context.correlationId,
     });
@@ -63,6 +73,8 @@ export class HappyMEmbedSessionController {
       pharmacyId: context.pharmacyId,
       correlationId: context.correlationId,
       expiresAt: context.expiresAt,
+      purpose: context.purpose,
+      provider: context.provider || null,
     };
   }
 

@@ -3,6 +3,11 @@
 import { FC, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import {
+  HAPPYM_CONNECT_FLOW_MARKER,
+  happyMConnectErrorMessage,
+  HappyMConnectErrorKind,
+} from './happym.connect.policy';
 
 type ConnectSession = {
   active: boolean;
@@ -16,13 +21,15 @@ export const HappyMConnect: FC = () => {
   const searchParams = useSearchParams();
   const ticket = searchParams.get('ticket');
   const provider = searchParams.get('provider');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<HappyMConnectErrorKind>();
 
   useEffect(() => {
     const initialize = async () => {
       try {
+        window.sessionStorage.setItem(HAPPYM_CONNECT_FLOW_MARKER, 'true');
         if (!provider || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(provider)) {
-          throw new Error('Invalid Social Manager provider');
+          setError('invalid_provider');
+          return;
         }
 
         if (ticket) {
@@ -31,9 +38,8 @@ export const HappyMConnect: FC = () => {
             body: JSON.stringify({ ticket, purpose: 'connect', provider }),
           });
           if (!exchange.ok) {
-            throw new Error(
-              `Connect ticket exchange failed (${exchange.status})`
-            );
+            setError('exchange_failed');
+            return;
           }
           const result = await exchange.json();
           window.location.replace(result.redirectUrl);
@@ -42,9 +48,8 @@ export const HappyMConnect: FC = () => {
 
         const currentResponse = await fetch('/happym/embed-sessions/current');
         if (!currentResponse.ok) {
-          throw new Error(
-            `Connect session validation failed (${currentResponse.status})`
-          );
+          setError('session_expired');
+          return;
         }
         const current = (await currentResponse.json()) as ConnectSession;
         if (
@@ -52,7 +57,8 @@ export const HappyMConnect: FC = () => {
           current.purpose !== 'connect' ||
           current.provider !== provider
         ) {
-          throw new Error('No active Social Manager connect session');
+          setError('session_expired');
+          return;
         }
 
         const returnUrl = `${
@@ -64,24 +70,25 @@ export const HappyMConnect: FC = () => {
           )}?redirectUrl=${encodeURIComponent(returnUrl)}`
         );
         if (!connectResponse.ok) {
-          throw new Error(
-            `Provider connect initialization failed (${connectResponse.status})`
+          setError(
+            connectResponse.status === 401 || connectResponse.status === 403
+              ? 'session_expired'
+              : 'provider_unavailable'
           );
+          return;
         }
         const connect = (await connectResponse.json()) as {
           url?: string;
           err?: boolean;
+          errorCode?: 'provider_not_configured' | 'provider_unavailable';
         };
         if (!connect.url || connect.err) {
-          throw new Error('Provider connect initialization failed');
+          setError(connect.errorCode || 'provider_unavailable');
+          return;
         }
         window.location.replace(connect.url);
-      } catch (failure) {
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : 'Social Manager connect failed'
-        );
+      } catch {
+        setError('provider_unavailable');
       }
     };
 
@@ -89,9 +96,26 @@ export const HappyMConnect: FC = () => {
   }, [fetch, provider, ticket]);
 
   if (error) {
+    const message = happyMConnectErrorMessage(
+      error,
+      provider || '',
+      typeof navigator === 'undefined' ? 'en' : navigator.language
+    );
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-newBgColor p-8 text-textColor">
-        <div role="alert">{error}</div>
+        <div className="max-w-lg text-center" role="alert">
+          <p>{message}</p>
+          <button
+            className="mt-6 rounded bg-primary px-5 py-2 text-white"
+            type="button"
+            onClick={() => window.close()}
+          >
+            {typeof navigator !== 'undefined' &&
+            navigator.language.toLowerCase().startsWith('it')
+              ? 'Chiudi'
+              : 'Close'}
+          </button>
+        </div>
       </div>
     );
   }

@@ -35,6 +35,7 @@ import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integration
 import { GetHappyMEmbedContext } from '@gitroom/backend/services/happym-embed/happym.embed.context';
 import { HappyMEmbedSessionClaims } from '@gitroom/backend/services/happym-embed/happym.embed.types';
 import { assertHappyMEmbedIntegration } from '@gitroom/backend/services/happym-embed/happym.embed.authorization';
+import { isHappyMConnectProviderConfigured } from '@gitroom/backend/services/happym-embed/happym.connect.provider-configuration';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -213,7 +214,8 @@ export class IntegrationsController {
     @Query('externalUrl') externalUrl: string,
     @Query('redirectUrl') redirectUrl: string,
     @Query('onboarding') onboarding: string,
-    @GetOrgFromRequest() org: Organization
+    @GetOrgFromRequest() org: Organization,
+    @GetHappyMEmbedContext() embedContext?: HappyMEmbedSessionClaims
   ) {
     if (
       !this._integrationManager
@@ -225,6 +227,13 @@ export class IntegrationsController {
 
     const integrationProvider =
       this._integrationManager.getSocialIntegration(integration);
+
+    if (
+      embedContext?.purpose === 'connect' &&
+      !isHappyMConnectProviderConfigured(integration)
+    ) {
+      return { err: true, errorCode: 'provider_not_configured' as const };
+    }
 
     if (integrationProvider.externalUrl && !externalUrl) {
       throw new Error('Missing external url');
@@ -264,7 +273,12 @@ export class IntegrationsController {
 
       return { url };
     } catch (err) {
-      return { err: true };
+      return {
+        err: true,
+        ...(embedContext?.purpose === 'connect'
+          ? { errorCode: 'provider_unavailable' as const }
+          : {}),
+      };
     }
   }
 

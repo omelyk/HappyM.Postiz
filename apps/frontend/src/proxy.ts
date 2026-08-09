@@ -8,6 +8,7 @@ import {
   headerName,
   languages,
 } from '@gitroom/react/translation/i18n.config';
+import { isHappyMConnectPath } from '@gitroom/frontend/components/happym-embed/happym.connect.policy';
 acceptLanguage.languages(languages);
 
 // This function can be marked `async` if using `await` inside
@@ -42,10 +43,14 @@ export async function proxy(request: NextRequest) {
 
   if (
     nextUrl.pathname === '/embed/happym/composer' ||
-    nextUrl.pathname === '/embed/happym/connect'
+    isHappyMConnectPath(nextUrl.pathname)
   ) {
     const ticket = nextUrl.searchParams.get('ticket');
-    if (!authCookie && !ticket) {
+    if (
+      nextUrl.pathname === '/embed/happym/composer' &&
+      !authCookie &&
+      !ticket
+    ) {
       return NextResponse.redirect(
         new URL('/auth/login-required', nextUrl.href)
       );

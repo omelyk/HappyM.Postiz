@@ -1,5 +1,11 @@
 # HappyM change log
 
+## 1.0.0-alpha.6 - 2026-08-09
+
+- Enforced the CRM Connect no-login invariant across proxy and browser API failures.
+- Added explicit bilingual session/provider errors with a close action.
+- Added appliance OAuth credential validation before starting provider flows.
+
 ## 1.0.0-alpha.5 - 2026-08-08
 
 - Fixed Connect exchange to derive purpose/provider from the authoritative CRM ticket.

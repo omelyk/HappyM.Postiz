@@ -11,6 +11,12 @@ export const isHappyMConnectPath = (pathname: string) =>
 
 export const HAPPYM_CONNECT_FLOW_MARKER = 'happym-connect-flow';
 
+export const happyMProviderNotConfiguredMessage = (provider: string) => ({
+  socialManager: 'provider_not_configured' as const,
+  provider,
+  errorCode: 'provider_not_configured' as const,
+});
+
 export const happyMConnectErrorMessage = (
   kind: HappyMConnectErrorKind,
   provider: string,
@@ -37,8 +43,8 @@ export const happyMConnectErrorMessage = (
       'The connection session has expired. Close this window and try again from the CRM.',
     ],
     provider_not_configured: [
-      `${channel} non è configurato sull’appliance. Contatta l’amministratore.`,
-      `${channel} is not configured on the appliance. Contact the administrator.`,
+      `${channel} non è configurato in Social Manager. Contatta l’amministratore.`,
+      `${channel} is not configured in Social Manager. Contact the administrator.`,
     ],
     provider_unavailable: [
       `Impossibile avviare il collegamento a ${channel}. Riprova più tardi o contatta l’amministratore.`,

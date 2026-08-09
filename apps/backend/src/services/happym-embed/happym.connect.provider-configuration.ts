@@ -3,9 +3,15 @@ type Environment = Record<string, string | undefined>;
 const requiredVariables: Record<string, string[][]> = {
   discord: [['DISCORD_CLIENT_ID'], ['DISCORD_CLIENT_SECRET']],
   dribbble: [['DRIBBBLE_CLIENT_ID'], ['DRIBBBLE_CLIENT_SECRET']],
-  facebook: [['FACEBOOK_APP_ID'], ['FACEBOOK_APP_SECRET']],
+  facebook: [
+    ['FACEBOOK_APP_ID', 'PHARMA_FACEBOOK_APP_ID'],
+    ['FACEBOOK_APP_SECRET', 'PHARMA_FACEBOOK_APP_SECRET'],
+  ],
   farcaster: [['NEYNAR_CLIENT_ID'], ['NEYNAR_SECRET_KEY']],
-  instagram: [['FACEBOOK_APP_ID'], ['FACEBOOK_APP_SECRET']],
+  instagram: [
+    ['FACEBOOK_APP_ID', 'PHARMA_FACEBOOK_APP_ID'],
+    ['FACEBOOK_APP_SECRET', 'PHARMA_FACEBOOK_APP_SECRET'],
+  ],
   'instagram-standalone': [['INSTAGRAM_APP_ID'], ['INSTAGRAM_APP_SECRET']],
   kick: [['KICK_CLIENT_ID'], ['KICK_SECRET']],
   linkedin: [['LINKEDIN_CLIENT_ID'], ['LINKEDIN_CLIENT_SECRET']],

@@ -1,7 +1,10 @@
 module.exports = {
   displayName: 'happym-embed',
   testEnvironment: 'node',
-  testMatch: ['<rootDir>/src/services/happym-embed/**/*.spec.ts'],
+  testMatch: [
+    '<rootDir>/src/services/happym-embed/**/*.spec.ts',
+    '<rootDir>/src/services/happym-appliance/**/*.spec.ts',
+  ],
   transform: {
     '^.+\\.ts$': [
       'ts-jest',

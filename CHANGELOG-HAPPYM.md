@@ -1,5 +1,11 @@
 # HappyM change log
 
+## 1.0.0-alpha.7 - 2026-08-09
+
+- Added M2M provider status and immediate Meta OAuth app hot-apply.
+- Accepted canonical and Pharma-prefixed Facebook environment variables at startup.
+- Sent a whitelabel `provider_not_configured` event to the CRM without leaking secrets or internal branding.
+
 ## 1.0.0-alpha.6 - 2026-08-09
 
 - Enforced the CRM Connect no-login invariant across proxy and browser API failures.

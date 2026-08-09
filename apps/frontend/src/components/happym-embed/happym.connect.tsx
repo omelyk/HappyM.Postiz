@@ -6,6 +6,7 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import {
   HAPPYM_CONNECT_FLOW_MARKER,
   happyMConnectErrorMessage,
+  happyMProviderNotConfiguredMessage,
   HappyMConnectErrorKind,
 } from './happym.connect.policy';
 
@@ -83,7 +84,14 @@ export const HappyMConnect: FC = () => {
           errorCode?: 'provider_not_configured' | 'provider_unavailable';
         };
         if (!connect.url || connect.err) {
-          setError(connect.errorCode || 'provider_unavailable');
+          const errorCode = connect.errorCode || 'provider_unavailable';
+          if (errorCode === 'provider_not_configured' && window.opener) {
+            window.opener.postMessage(
+              happyMProviderNotConfiguredMessage(provider),
+              current.origin
+            );
+          }
+          setError(errorCode);
           return;
         }
         window.location.replace(connect.url);

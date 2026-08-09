@@ -1,10 +1,14 @@
-import { Body, Controller, Get, Header, Post } from '@nestjs/common';
+import { Body, Controller, Get, Header, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
   EnsureOrganizationRequest,
   EnsureUserRequest,
   HappyMApplianceService,
 } from '@gitroom/backend/services/happym-appliance/happym.appliance.service';
+import {
+  HappyMProviderConfigurationService,
+  SetFacebookOAuthAppRequest,
+} from '@gitroom/backend/services/happym-appliance/happym.provider-configuration.service';
 
 @ApiTags('HappyM Appliance')
 @Controller('/internal/happym/appliance/health')
@@ -51,5 +55,30 @@ export class HappyMApplianceController {
   @Post('/admin/password/reset')
   resetAdminPassword(@Body() body: { password: string }) {
     return this.appliance.resetAdminPassword(body?.password);
+  }
+}
+
+@ApiTags('Social Manager Providers')
+@Controller('/appliance/providers')
+export class HappyMProviderConfigurationController {
+  constructor(
+    private readonly providers: HappyMProviderConfigurationService
+  ) {}
+
+  @Get('/')
+  getProvidersStatus() {
+    return this.providers.getProvidersStatus();
+  }
+
+  @Get('/facebook')
+  getFacebookStatus() {
+    return this.providers.getFacebookStatus();
+  }
+
+  @Put('/facebook')
+  setFacebookOAuthApp(@Body() body: SetFacebookOAuthAppRequest) {
+    const { configured, appIdMasked } =
+      this.providers.setFacebookOAuthApp(body);
+    return { configured, appIdMasked };
   }
 }

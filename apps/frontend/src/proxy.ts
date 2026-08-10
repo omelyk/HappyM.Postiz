@@ -9,6 +9,7 @@ import {
   languages,
 } from '@gitroom/react/translation/i18n.config';
 import { isHappyMConnectPath } from '@gitroom/frontend/components/happym-embed/happym.connect.policy';
+import { happyMApplianceHomePath } from '@gitroom/frontend/components/happym-appliance/happym.appliance.navigation';
 acceptLanguage.languages(languages);
 
 // This function can be marked `async` if using `await` inside
@@ -195,7 +196,7 @@ export async function proxy(request: NextRequest) {
     if (nextUrl.pathname === '/') {
       return NextResponse.redirect(
         new URL(
-          !!process.env.IS_GENERAL ? '/launches' : `/analytics`,
+          happyMApplianceHomePath(applianceMode, !!process.env.IS_GENERAL),
           nextUrl.href
         )
       );

@@ -90,7 +90,7 @@ export class PublicIntegrationsController {
       product: 'HappyM.Postiz',
       apiVersion: '1',
       upstreamVersion: process.env.POSTIZ_UPSTREAM_VERSION || '2.23.0',
-      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-alpha.7',
+      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-alpha.8',
       capabilities: [
         'analytics',
         'integration-settings',

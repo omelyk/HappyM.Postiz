@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.8 - 2026-08-10
+
+- Added a server-rendered Social Manager settings landing for appliance administrators.
+- Redirected the authenticated appliance home to the stable settings console.
+- Limited `/launches` popup closing to explicit OAuth result callbacks.
+- Added settings RSC and browser smoke-test guidance.
+
 ## 1.0.0-alpha.7 - 2026-08-09
 
 - Added M2M provider status and immediate Meta OAuth app hot-apply.

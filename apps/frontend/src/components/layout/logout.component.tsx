@@ -10,6 +10,9 @@ export const LogoutComponent: FC<{ isIcon?: boolean }> = ({ isIcon }) => {
   const fetch = useFetch();
   const { isGeneral, isSecured } = useVariables();
   const t = useT();
+  const productName = process.env.NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE === 'true'
+    ? ' Social Manager'
+    : isGeneral ? ' Postiz' : ' Gitroom';
 
   const logout = useCallback(async () => {
     if (
@@ -44,7 +47,7 @@ export const LogoutComponent: FC<{ isIcon?: boolean }> = ({ isIcon }) => {
             data-tooltip-id="tooltip"
             data-tooltip-content={`
             ${t('logout_from', 'Logout from')}${' '}
-            ${isGeneral ? ' Postiz' : ' Gitroom'}
+            ${productName}
             `}
           >
             <path
@@ -55,7 +58,7 @@ export const LogoutComponent: FC<{ isIcon?: boolean }> = ({ isIcon }) => {
         ) : (
           <span className="text-red-400">
             {t('logout_from', 'Logout from')}
-            {isGeneral ? ' Postiz' : ' Gitroom'}
+            {productName}
           </span>
         )}
       </div>

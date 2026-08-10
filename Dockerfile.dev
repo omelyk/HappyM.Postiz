@@ -5,6 +5,7 @@ ENV HAPPYM_APPLIANCE_MODE=true \
     DISABLE_REGISTRATION=true \
     HAPPYM_PRODUCT_NAME="Social Manager" \
     NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE=true \
+    NEXT_PUBLIC_HAPPYM_APPLIANCE_SYSTEM_ORGANIZATION_ID="happym-system" \
     NEXT_PUBLIC_HAPPYM_PRODUCT_NAME="Social Manager"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \

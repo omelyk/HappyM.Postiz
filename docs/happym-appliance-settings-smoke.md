@@ -5,7 +5,7 @@ administrator session. Never paste the real cookie into logs or committed
 files.
 
 ```powershell
-$baseUrl = 'https://postiz.happym.local'
+$baseUrl = $env:SOCIAL_MANAGER_PUBLIC_URL
 $authCookie = '<temporary-auth-cookie>'
 $response = Invoke-WebRequest `
   -Uri "$baseUrl/settings" `

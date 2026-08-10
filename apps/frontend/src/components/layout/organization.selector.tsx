@@ -10,6 +10,11 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
 }) => {
   const fetch = useFetch();
   const user = useUser();
+  const applianceMode =
+    process.env.NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE === 'true';
+  const systemOrganizationId =
+    process.env.NEXT_PUBLIC_HAPPYM_APPLIANCE_SYSTEM_ORGANIZATION_ID ||
+    'happym-system';
   const load = useCallback(async () => {
     return await (await fetch('/user/organizations')).json();
   }, []);
@@ -38,18 +43,20 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
     },
     []
   );
-  if (isLoading || (!isLoading && data?.length === 1)) {
+  if (isLoading || (!isLoading && data?.length === 1 && !applianceMode)) {
     return null;
   }
   return (
     <>
-      <div className="hover:text-newTextColor">
+      <div className="hover:text-newTextColor" id="workspace-selector">
         <div className="group text-[12px] relative">
           {asOpenSelect && (
-            <div className="bg-btnPrimary !flex !relative max-w-[500px] mx-auto py-[12px] px-[12px]">Select Organization</div>
+            <div className="bg-btnPrimary !flex !relative max-w-[500px] mx-auto py-[12px] px-[12px]">
+              {applianceMode ? 'Seleziona workspace farmacia' : 'Select Organization'}
+            </div>
           )}
           {!asOpenSelect && (
-            <div className="flex items-center">
+            <div className="flex items-center gap-[8px] cursor-pointer" aria-label={applianceMode ? 'Workspace farmacia' : 'Organization'}>
               <svg
                 className={user?.tier.current === 'FREE' ? 'animate-bounce drop-shadow-glow': ''}
                 width="24"
@@ -63,18 +70,51 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
                   fill="currentColor"
                 />
               </svg>
+              {applianceMode && (
+                <div className="hidden max-w-[180px] flex-col leading-tight xl:flex">
+                  <span className="text-[10px] uppercase tracking-wide text-textItemBlur">
+                    {current?.id === systemOrganizationId ? 'Workspace sistema' : 'Farmacia'}
+                  </span>
+                  <span className="truncate font-semibold text-newTextColor">
+                    {current?.id || user?.orgId}
+                  </span>
+                </div>
+              )}
             </div>
           )}
           {data?.length > 1 && (
             <div
               className={clsx(
-                'hidden py-[12px] px-[12px] group-hover:flex absolute top-[100%] end-0 bg-third border-tableBorder border gap-[12px] cursor-pointer flex-col',
+                'hidden min-w-[280px] rounded-[8px] py-[12px] px-[12px] group-hover:flex absolute top-[100%] end-0 z-50 bg-third border-tableBorder border gap-[8px] cursor-pointer flex-col',
                 asOpenSelect ? '!flex !relative max-w-[500px] mx-auto mb-[10px]' : '',
               )}
             >
+              {applianceMode && (
+                <div className="border-b border-tableBorder pb-[8px] text-[11px] font-semibold uppercase tracking-wide text-textItemBlur">
+                  Workspace / Farmacia
+                </div>
+              )}
               {data?.map((org: { name: string; id: string }) => (
-                <div key={org.id} onClick={changeOrg(org)}>
-                  {org.name}
+                <div
+                  key={org.id}
+                  onClick={changeOrg(org)}
+                  className={clsx(
+                    'rounded-[6px] px-[8px] py-[7px] hover:bg-newBgLineColor',
+                    org.id === user?.orgId && 'bg-newBgLineColor'
+                  )}
+                >
+                  {applianceMode ? (
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{org.id}</span>
+                      <span className="text-textItemBlur">
+                        {org.id === systemOrganizationId
+                          ? 'Sistema · amministrazione motore'
+                          : org.name || 'Workspace farmacia'}
+                      </span>
+                    </div>
+                  ) : (
+                    org.name
+                  )}
                 </div>
               ))}
             </div>

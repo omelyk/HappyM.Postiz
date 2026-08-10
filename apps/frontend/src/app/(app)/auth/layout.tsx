@@ -22,9 +22,13 @@ export default async function AuthLayout({
       <div className="flex flex-col py-[40px] px-[20px] flex-1 lg:w-[600px] lg:flex-none rounded-[12px] text-white p-[12px] bg-[#1A1919]">
         <div className="w-full max-w-[440px] mx-auto justify-center gap-[20px] h-full flex flex-col text-white">
           {applianceMode ? (
-            <div className="text-2xl font-semibold tracking-tight">
-              {productName}
-            </div>
+            <img
+              src="/brand/social-manager-logo-white.svg"
+              alt={productName}
+              width={360}
+              height={80}
+              className="h-auto w-full max-w-[360px]"
+            />
           ) : (
             <LogoTextComponent />
           )}

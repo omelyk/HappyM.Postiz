@@ -27,18 +27,39 @@ export const InstagramContinue = withContinueProvider<
   swrKey: 'load-instagram-pages',
   titleKey: 'select_instagram_account',
   titleDefault: 'Select Instagram Account:',
+  compactEmptyState: true,
   emptyStateMessages: [
     {
-      key: 'we_couldn_t_find_any_business_connected_to_the_selected_pages',
-      text: "We couldn't find any business connected to the selected pages.",
+      key: 'instagram_business_not_linked_title',
+      text: 'Instagram Business not linked to the selected Facebook Page',
     },
     {
-      key: 'we_recommend_you_to_connect_all_the_pages_and_all_the_businesses',
-      text: 'We recommend you to connect all the pages and all the businesses.',
+      key: 'instagram_business_not_linked_body',
+      text: 'Social Manager publishes Instagram through Meta: the Instagram account must be Professional (Business/Creator) and linked to the Facebook Page you selected. A personal Instagram or a Page without a linked IG Business cannot complete this step.',
     },
     {
-      key: 'please_close_this_dialog_delete_your_integration_and_add_a_new_channel_again',
-      text: 'Please close this dialog, delete your integration and add a new channel again.',
+      key: 'instagram_business_not_linked_step_1',
+      text: '1. In Meta Business Suite, open the pharmacy Facebook Page and confirm you are an admin.',
+    },
+    {
+      key: 'instagram_business_not_linked_step_2',
+      text: '2. Link a Professional Instagram account to that Page (Page / Instagram settings).',
+    },
+    {
+      key: 'instagram_business_not_linked_step_3',
+      text: '3. Start Connect again and select that same Page (and Business, if asked).',
+    },
+    {
+      key: 'instagram_business_not_linked_step_4',
+      text: '4. If an incomplete integration remains in Social Manager, delete it and Connect again.',
+    },
+    {
+      key: 'instagram_business_not_linked_step_5',
+      text: '5. Return to the CRM (Pharmacies → Socials) and use Resync if the list did not refresh.',
+    },
+    {
+      key: 'instagram_business_not_linked_footnote',
+      text: 'This is a Meta Page↔Instagram link issue, not a CRM login problem.',
     },
   ],
   getItemId: (item) => item.id,

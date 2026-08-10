@@ -1,5 +1,13 @@
 # HappyM change log
 
+## 1.0.0-alpha.9 - 2026-08-10
+
+- Rebranded appliance login, sidebar, favicon and primary page titles as Social Manager using versioned NetForges assets.
+- Kept public frontend, backend and Meta OAuth URLs driven by `FRONTEND_URL`, `MAIN_URL` and `NEXT_PUBLIC_BACKEND_URL`; removed the legacy host from smoke guidance.
+- Replaced the Instagram Business empty-state with actionable Meta Page-to-Instagram instructions in Italian and English.
+- Made the active pharmacy workspace explicit in the top bar, with code/display name, a separately labelled system workspace and a system-workspace empty-state.
+- Preserved signed Connect ticket tenant isolation; NuGet/npm SDK versions remain `1.0.0-alpha.7` because their contracts did not change.
+
 ## 1.0.0-alpha.8 - 2026-08-10
 
 - Added a server-rendered Social Manager settings landing for appliance administrators.

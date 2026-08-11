@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.10 - 2026-08-11
+
+- Migrated the appliance-owned Temporal `organizationId` and `postId` search attributes from quota-constrained Text to exact-match Keyword.
+- Made Temporal search-attribute bootstrap fail-soft so Nest remains online instead of leaving nginx on a permanent 502.
+- Added explicit appliance readiness reasons and structured 503 responses for M2M mutations while Temporal is unavailable.
+- Coordinated the image with Postiz.NET and HappyM.Pharma.Postiz package `1.0.0-alpha.10`, including structured Social Manager API errors.
+
 ## 1.0.0-alpha.9 - 2026-08-10
 
 - Rebranded appliance login, sidebar, favicon and primary page titles as Social Manager using versioned NetForges assets.

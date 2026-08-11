@@ -9,6 +9,7 @@ import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { PrismaService } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { Provider, Role } from '@prisma/client';
+import { TemporalSearchAttributesReadiness } from '@gitroom/nestjs-libraries/temporal/temporal.register';
 
 export type EnsureOrganizationRequest = {
   organizationId?: string;
@@ -28,7 +29,10 @@ export type EnsureUserRequest = {
 export class HappyMApplianceService implements OnApplicationBootstrap {
   private readonly logger = new Logger(HappyMApplianceService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly temporalReadiness: TemporalSearchAttributesReadiness
+  ) {}
 
   async onApplicationBootstrap() {
     if (this.enabled) {
@@ -48,9 +52,19 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
 
     try {
       const status = await this.status();
-      return { up: true, applianceMode: true, ready: status.ready };
+      return {
+        up: true,
+        applianceMode: true,
+        ready: status.ready,
+        reason: status.reason,
+      };
     } catch {
-      return { up: true, applianceMode: true, ready: false };
+      return {
+        up: true,
+        applianceMode: true,
+        ready: false,
+        reason: 'appliance_bootstrap_unavailable',
+      };
     }
   }
 
@@ -71,12 +85,17 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
         },
       },
     });
-    const ready = !!organization?.apiKey && !!organization.users[0]?.user.id;
+    const applianceReady = !!organization?.apiKey && !!organization.users[0]?.user.id;
+    const temporal = this.temporalReadiness.snapshot;
+    const ready = applianceReady && temporal.ready;
     return {
       up: true,
       apiOk: true,
       applianceMode: true,
       ready,
+      reason: ready
+        ? null
+        : temporal.reason || 'appliance_bootstrap_unavailable',
       productName: config.productName,
       systemOrganizationId: ready ? organization.id : null,
       adminProvisioned: !!organization?.users[0]?.user.id,
@@ -85,6 +104,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
   }
 
   async provisionCredentials() {
+    this.assertReady();
     const bootstrap = await this.ensureBootstrap();
     return {
       apiKey: bootstrap.apiKey,
@@ -95,6 +115,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
   }
 
   async rotateCredentials() {
+    this.assertReady();
     const config = this.configuration();
     await this.ensureBootstrap();
     const organization = await this.prisma.organization.update({
@@ -112,6 +133,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
   }
 
   async ensureOrganization(body: EnsureOrganizationRequest) {
+    this.assertReady();
     const pharmacyCode = this.identifier(body.pharmacyCode, 'pharmacyCode');
     const organizationId = this.identifier(
       body.organizationId || `happym-pharmacy-${pharmacyCode.toLowerCase()}`,
@@ -148,6 +170,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
   }
 
   async ensureUser(body: EnsureUserRequest) {
+    this.assertReady();
     const organizationId = this.identifier(
       body.organizationId,
       'organizationId'
@@ -218,6 +241,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
   }
 
   async resetAdminPassword(password: string) {
+    this.assertReady();
     const config = this.configuration();
     this.password(password);
     const user = await this.prisma.user.findUnique({
@@ -304,6 +328,16 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       },
     });
     return { organizationId: withKey.id, apiKey: withKey.apiKey! };
+  }
+
+  private assertReady() {
+    const temporal = this.temporalReadiness.snapshot;
+    if (!temporal.ready) {
+      throw new ServiceUnavailableException({
+        ready: false,
+        reason: temporal.reason || 'temporal_search_attributes_unavailable',
+      });
+    }
   }
 
   private configuration() {

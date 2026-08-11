@@ -57,6 +57,8 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
         applianceMode: true,
         ready: status.ready,
         reason: status.reason,
+        reasonCode: status.reasonCode,
+        remediationHint: status.remediationHint,
       };
     } catch {
       return {
@@ -64,6 +66,8 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
         applianceMode: true,
         ready: false,
         reason: 'appliance_bootstrap_unavailable',
+        reasonCode: 'starting',
+        remediationHint: 'retry_automatically',
       };
     }
   }
@@ -88,14 +92,21 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     const applianceReady = !!organization?.apiKey && !!organization.users[0]?.user.id;
     const temporal = this.temporalReadiness.snapshot;
     const ready = applianceReady && temporal.ready;
+    const reason = ready
+      ? null
+      : temporal.reason || 'appliance_bootstrap_unavailable';
     return {
       up: true,
       apiOk: true,
       applianceMode: true,
       ready,
-      reason: ready
+      reason,
+      reasonCode: ready
         ? null
-        : temporal.reason || 'appliance_bootstrap_unavailable',
+        : temporal.reason
+          ? 'temporal_search_attr'
+          : 'starting',
+      remediationHint: ready ? null : 'retry_automatically',
       productName: config.productName,
       systemOrganizationId: ready ? organization.id : null,
       adminProvisioned: !!organization?.users[0]?.user.id,
@@ -336,6 +347,8 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       throw new ServiceUnavailableException({
         ready: false,
         reason: temporal.reason || 'temporal_search_attributes_unavailable',
+        reasonCode: 'temporal_search_attr',
+        remediationHint: 'retry_automatically',
       });
     }
   }

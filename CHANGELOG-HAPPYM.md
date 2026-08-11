@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.11 - 2026-08-11
+
+- Prevented concurrent Mastra PostgreSQL schema initialization with a shared single-flight promise and a database advisory lock, eliminating the observed duplicate-key cold-start crash.
+- Replaced the detached PM2 startup with `pm2-runtime`, controlled restart/backoff policies and a direct Nest watchdog that escalates irrecoverable failures to the container orchestrator.
+- Converted nginx upstream 502/504 responses into a branded structured 503 contract and added a readiness-aware Docker health check.
+- Extended appliance readiness payloads with stable `reasonCode` and `remediationHint` fields while retaining the existing `reason` field for backward compatibility.
+
 ## 1.0.0-alpha.10 - 2026-08-11
 
 - Migrated the appliance-owned Temporal `organizationId` and `postId` search attributes from quota-constrained Text to exact-match Keyword.

@@ -76,6 +76,8 @@ describe('Appliance readiness gate', () => {
     expect(error.getResponse()).toEqual({
       ready: false,
       reason: 'temporal_search_attributes_unavailable',
+      reasonCode: 'temporal_search_attr',
+      remediationHint: 'retry_automatically',
     });
   });
 });

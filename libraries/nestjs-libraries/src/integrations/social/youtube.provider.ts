@@ -23,12 +23,14 @@ import dayjs from 'dayjs';
 import { createReadStream, statSync } from 'fs';
 import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { youtubeRedirectUri } from '@gitroom/nestjs-libraries/integrations/social/youtube.redirect-uri';
 
 const clientAndYoutube = () => {
+  const redirectUri = youtubeRedirectUri();
   const client = new google.auth.OAuth2({
     clientId: process.env.YOUTUBE_CLIENT_ID,
     clientSecret: process.env.YOUTUBE_CLIENT_SECRET,
-    redirectUri: `${process.env.FRONTEND_URL}/integrations/social/youtube`,
+    redirectUri,
   });
 
   const youtube = (newClient: OAuth2Client) =>
@@ -49,7 +51,7 @@ const clientAndYoutube = () => {
       auth: newClient,
     });
 
-  return { client, youtube, oauth2, youtubeAnalytics };
+  return { client, youtube, oauth2, youtubeAnalytics, redirectUri };
 };
 
 @Rules('YouTube must have on video attachment, it cannot be empty')
@@ -284,13 +286,13 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
 
   async generateAuthUrl() {
     const state = makeId(7);
-    const { client } = clientAndYoutube();
+    const { client, redirectUri } = clientAndYoutube();
     return {
       url: client.generateAuthUrl({
         access_type: 'offline',
         prompt: 'consent',
         state,
-        redirect_uri: `${process.env.FRONTEND_URL}/integrations/social/youtube`,
+        redirect_uri: redirectUri,
         scope: this.scopes.slice(0),
       }),
       codeVerifier: makeId(11),

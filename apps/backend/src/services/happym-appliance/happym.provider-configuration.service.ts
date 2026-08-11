@@ -1,4 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { youtubeRedirectUri } from '@gitroom/nestjs-libraries/integrations/social/youtube.redirect-uri';
 
 export type ProviderConfigurationStatus = {
   provider: 'facebook';
@@ -18,7 +19,9 @@ export class HappyMProviderConfigurationService {
   }
 
   getProvidersStatus() {
-    return { providers: [this.getFacebookStatus()] };
+    return {
+      providers: [this.getFacebookStatus(), this.getYoutubeStatus()],
+    };
   }
 
   getFacebookStatus(): ProviderConfigurationStatus {
@@ -28,6 +31,16 @@ export class HappyMProviderConfigurationService {
       provider: 'facebook',
       configured: !!appId && !!appSecret,
       appIdMasked: appId ? this.mask(appId) : null,
+    };
+  }
+
+  getYoutubeStatus() {
+    return {
+      provider: 'youtube' as const,
+      configured:
+        !!process.env.YOUTUBE_CLIENT_ID?.trim() &&
+        !!process.env.YOUTUBE_CLIENT_SECRET,
+      redirectUri: youtubeRedirectUri(),
     };
   }
 

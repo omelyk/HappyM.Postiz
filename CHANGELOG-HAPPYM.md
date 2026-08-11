@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.12 - 2026-08-11
+
+- Added the YouTube-only `YOUTUBE_REDIRECT_URI` override without changing the public Social Manager host used by other providers.
+- Applied the effective redirect consistently to Google OAuth client construction, authorization URL generation and authorization-code exchange.
+- Exposed the effective YouTube callback through the appliance provider-status endpoint without returning OAuth secrets.
+- Documented the localhost UAT callback and the exact-match requirement in Google Cloud Console; private NuGet/npm SDK versions remain `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.11 - 2026-08-11
 
 - Prevented concurrent Mastra PostgreSQL schema initialization with a shared single-flight promise and a database advisory lock, eliminating the observed duplicate-key cold-start crash.

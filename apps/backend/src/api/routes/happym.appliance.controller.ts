@@ -75,6 +75,11 @@ export class HappyMProviderConfigurationController {
     return this.providers.getFacebookStatus();
   }
 
+  @Get('/youtube')
+  getYoutubeStatus() {
+    return this.providers.getYoutubeStatus();
+  }
+
   @Put('/facebook')
   setFacebookOAuthApp(@Body() body: SetFacebookOAuthAppRequest) {
     const { configured, appIdMasked } =

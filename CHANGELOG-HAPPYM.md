@@ -1,5 +1,11 @@
 # HappyM change log
 
+## 1.0.0-alpha.17 - 2026-08-12
+
+- Kept the service administrator configured by `HAPPYM_APPLIANCE_ADMIN_*` as the SSO identity while provisioning the opt-in local demo SuperAdmin as a separate account.
+- Granted both service and demo SuperAdmins access to CRM-provisioned pharmacy workspaces without sharing or logging either credential.
+- Retained the workspace switcher and tenant glossary delivered in `1.0.0-alpha.16`; the Vue package remains `1.0.0-alpha.16`, NuGet remains `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.16 - 2026-08-12
 
 - Made the System-workspace CTA open an accessible, click-controlled workspace switcher instead of merely focusing a hover-only control.

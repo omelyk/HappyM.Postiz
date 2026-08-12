@@ -351,6 +351,30 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       },
     });
     await this.ensureAdminWorkspaceMemberships(user.id);
+    if (config.devLoginHint) {
+      const demoUser = await this.prisma.user.upsert({
+        where: {
+          email_providerName: {
+            email: config.devLoginHint.email,
+            providerName: Provider.LOCAL,
+          },
+        },
+        update: {
+          activated: true,
+          password: AuthService.hashPassword(config.devLoginHint.password),
+        },
+        create: {
+          email: config.devLoginHint.email,
+          name: `${config.productName} Demo`,
+          providerName: Provider.LOCAL,
+          password: AuthService.hashPassword(config.devLoginHint.password),
+          activated: true,
+          timezone: 0,
+        },
+        select: { id: true },
+      });
+      await this.ensureAdminWorkspaceMemberships(demoUser.id);
+    }
     return { organizationId: withKey.id, apiKey: withKey.apiKey! };
   }
 
@@ -416,16 +440,12 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     }
     const devLoginHint = happyMDevLoginHint();
     const adminEmail = this.email(
-      devLoginHint?.email || process.env.HAPPYM_APPLIANCE_ADMIN_EMAIL || ''
+      process.env.HAPPYM_APPLIANCE_ADMIN_EMAIL || ''
     );
-    const adminPassword =
-      devLoginHint?.password ||
-      process.env.HAPPYM_APPLIANCE_ADMIN_PASSWORD ||
-      '';
+    const adminPassword = process.env.HAPPYM_APPLIANCE_ADMIN_PASSWORD || '';
+    this.password(adminPassword);
     if (devLoginHint) {
-      this.devPassword(adminPassword);
-    } else {
-      this.password(adminPassword);
+      this.devPassword(devLoginHint.password);
     }
     const internalClientId =
       process.env.HAPPYM_APPLIANCE_INTERNAL_CLIENT_ID || '';
@@ -439,7 +459,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     return {
       adminEmail,
       adminPassword,
-      devLoginHint: !!devLoginHint,
+      devLoginHint,
       internalClientId,
       internalClientSecret,
       systemOrganizationId: this.identifier(

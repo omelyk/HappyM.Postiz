@@ -12,8 +12,9 @@ HAPPYM_DEV_LOGIN_PASSWORD=Demo123456
 
 `superadmin` is normalized to `superadmin@happym.local` because the login form uses
 an email identifier. When the hint is enabled, the appliance bootstrap creates or
-updates that local user as `SUPERADMIN` in the configured system organization and
-aligns its password at startup.
+updates that separate local user as `SUPERADMIN` in every CRM-provisioned workspace
+and aligns its password at startup. The service administrator configured through
+`HAPPYM_APPLIANCE_ADMIN_*` remains unchanged and continues to own CRM admin SSO.
 
 The chip only fills the form; it never submits it. The credentials are not logged or
 returned by an API. They are sent to the login page only when both appliance mode and

@@ -7,6 +7,13 @@ import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/us
 import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.management';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
+import {
+  happyMEmbedSessionRequired,
+  isHappyMEmbedUserRequestUrl,
+} from '@gitroom/backend/services/happym-embed/happym.embed.errors';
+
+const isHappyMEmbedUserRequest = (req: Request) =>
+  isHappyMEmbedUserRequestUrl(req.originalUrl || req.path || '');
 
 export const removeAuth = (res: Response) => {
   res.cookie('auth', '', {
@@ -33,6 +40,9 @@ export class AuthMiddleware implements NestMiddleware {
   async use(req: Request, res: Response, next: NextFunction) {
     const auth = req.headers.auth || req.cookies.auth;
     if (!auth) {
+      if (isHappyMEmbedUserRequest(req)) {
+        throw happyMEmbedSessionRequired();
+      }
       throw new HttpForbiddenException();
     }
     try {
@@ -107,6 +117,9 @@ export class AuthMiddleware implements NestMiddleware {
       // @ts-expect-error
       req.org = setOrg;
     } catch (err) {
+      if (isHappyMEmbedUserRequest(req)) {
+        throw happyMEmbedSessionRequired();
+      }
       throw new HttpForbiddenException();
     }
     next();

@@ -4,7 +4,6 @@ import {
   Get,
   Post,
   Res,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -19,6 +18,7 @@ import {
   HAPPYM_EMBED_COOKIE,
   HappyMEmbedSessionClaims,
 } from '@gitroom/backend/services/happym-embed/happym.embed.types';
+import { happyMEmbedSessionRequired } from '@gitroom/backend/services/happym-embed/happym.embed.errors';
 
 @ApiTags('HappyM Embed')
 @Controller('/happym/embed-sessions')
@@ -94,10 +94,7 @@ export class HappyMEmbedSessionController {
     @GetOrgFromRequest() organization: Organization
   ) {
     if (!context) {
-      throw new UnauthorizedException({
-        code: 'happym_embed_session_required',
-        message: 'A valid Social Manager embed session is required.',
-      });
+      throw happyMEmbedSessionRequired();
     }
     return {
       id: context.postizUserId,

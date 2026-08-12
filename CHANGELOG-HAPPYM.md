@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.19 - 2026-08-12
+
+- Aligned valid composer embed sessions with the read/API dependencies used by tags, media, third-party assets, Copilot and the authenticated user profile.
+- Kept administrative endpoints denied while distinguishing an allow-list denial from an invalid or expired embed JWT.
+- Made the unauthenticated embed-session user endpoint return the stable `401` JSON contract `happym_embed_session_required` before the generic Postiz auth filter can emit an empty response.
+- Private Vue remains `1.0.0-alpha.16`, NuGet remains `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.18 - 2026-08-12
 
 - Changed auth, organization and embed cookies to host-only on `.local`, localhost, IP and other non-registrable/special-use hosts while retaining `Secure` and `SameSite=None` for HTTPS appliance embeds.

@@ -90,6 +90,13 @@ export class HappyMEmbedMiddleware implements NestMiddleware {
 
     return (
       composerRoutes.has(`${method} ${path}`) ||
+      `${method} ${path}` === 'GET /user/self' ||
+      (method === 'GET' &&
+        (/^\/posts\/(?:tags|find-slot(?:\/[^/]+)?)$/.test(path) ||
+          /^\/media(?:\/|$)/.test(path) ||
+          /^\/third-party(?:\/|$)/.test(path) ||
+          /^\/copilot(?:\/(?:credits|list|[^/]+\/list))?$/.test(path))) ||
+      (method === 'POST' && /^\/copilot\/(?:chat|agent)$/.test(path)) ||
       (method === 'GET' && /^\/integrations\/[^/]+\/internal-plugs$/.test(path))
     );
   }
@@ -106,31 +113,35 @@ export class HappyMEmbedMiddleware implements NestMiddleware {
       throw new ForbiddenException('HappyM embed sessions are not configured');
     }
 
+    let claims: HappyMEmbedSessionClaims;
     try {
-      const claims = verify(token, secret, {
+      claims = verify(token, secret, {
         algorithms: ['HS256'],
       }) as HappyMEmbedSessionClaims;
-      const requestWithContext = req as Request & {
-        user?: { id?: string };
-        org?: { id?: string };
-        happyMEmbedContext?: HappyMEmbedSessionClaims;
-      };
-
-      if (
-        claims.kind !== 'happym-embed' ||
-        claims.postizUserId !== requestWithContext.user?.id ||
-        claims.postizOrganizationId !== requestWithContext.org?.id
-      ) {
-        throw new Error('Embed session does not match the authenticated user');
-      }
-
-      requestWithContext.happyMEmbedContext = claims;
-      if (!this.isAllowedEndpoint(req, claims)) {
-        throw new Error('Endpoint is not available to HappyM embed sessions');
-      }
-      next();
     } catch {
       throw new ForbiddenException('Invalid or expired HappyM embed session');
     }
+
+    const requestWithContext = req as Request & {
+      user?: { id?: string };
+      org?: { id?: string };
+      happyMEmbedContext?: HappyMEmbedSessionClaims;
+    };
+
+    if (
+      claims.kind !== 'happym-embed' ||
+      claims.postizUserId !== requestWithContext.user?.id ||
+      claims.postizOrganizationId !== requestWithContext.org?.id
+    ) {
+      throw new ForbiddenException('Invalid or expired HappyM embed session');
+    }
+
+    requestWithContext.happyMEmbedContext = claims;
+    if (!this.isAllowedEndpoint(req, claims)) {
+      throw new ForbiddenException(
+        'Endpoint is not available to HappyM embed sessions'
+      );
+    }
+    next();
   }
 }

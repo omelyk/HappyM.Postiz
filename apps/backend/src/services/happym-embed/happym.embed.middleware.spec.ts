@@ -41,6 +41,33 @@ describe('HappyMEmbedMiddleware', () => {
     } as any;
   };
 
+  const composerRequest = (method: string, path: string) => {
+    const token = sign(
+      {
+        kind: 'happym-embed',
+        postizUserId: 'postiz-user-1',
+        postizOrganizationId: 'postiz-org-1',
+        tenantId: 'tenant-1',
+        pharmacyId: 'pharmacy-1',
+        userId: 'happym-user-1',
+        allowedIntegrationIds: ['integration-1'],
+        origin: 'https://crm.happym.test',
+        correlationId: 'correlation-1',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        purpose: 'composer',
+      },
+      process.env.HAPPYM_EMBED_SESSION_SECRET!,
+      { expiresIn: 60 }
+    );
+    return {
+      method,
+      originalUrl: `/api${path}`,
+      cookies: { [HAPPYM_EMBED_COOKIE]: token },
+      user: { id: 'postiz-user-1' },
+      org: { id: 'postiz-org-1' },
+    } as any;
+  };
+
   it('leaves normal Postiz sessions unchanged when no embed cookie exists', () => {
     const next = jest.fn();
     middleware.use({ cookies: {} } as any, {} as any, next);
@@ -79,27 +106,27 @@ describe('HappyMEmbedMiddleware', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects authenticated APIs outside the embed allow-list', () => {
-    const token = sign(
-      {
-        kind: 'happym-embed',
-        postizUserId: 'postiz-user-1',
-        postizOrganizationId: 'postiz-org-1',
-      },
-      process.env.HAPPYM_EMBED_SESSION_SECRET!,
-      { expiresIn: 60 }
-    );
-    const request: any = {
-      method: 'GET',
-      originalUrl: '/api/user/self',
-      cookies: { [HAPPYM_EMBED_COOKIE]: token },
-      user: { id: 'postiz-user-1' },
-      org: { id: 'postiz-org-1' },
-    };
+  it.each([
+    ['GET', '/posts/tags'],
+    ['GET', '/media'],
+    ['GET', '/media/video-options'],
+    ['GET', '/third-party'],
+    ['POST', '/copilot/chat'],
+    ['GET', '/user/self'],
+  ])('allows composer dependency %s %s', (method, path) => {
+    const next = jest.fn();
+    middleware.use(composerRequest(method, path), {} as any, next);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
 
-    expect(() => middleware.use(request, {} as any, jest.fn())).toThrow(
-      ForbiddenException
-    );
+  it('distinguishes a denied endpoint from an invalid embed session', () => {
+    expect(() =>
+      middleware.use(
+        composerRequest('POST', '/user/api-key/rotate'),
+        {} as any,
+        jest.fn()
+      )
+    ).toThrow('Endpoint is not available to HappyM embed sessions');
   });
 
   it('rejects a session replayed against another organization', () => {

@@ -24,6 +24,7 @@ import { createReadStream, statSync } from 'fs';
 import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
 import { youtubeRedirectUri } from '@gitroom/nestjs-libraries/integrations/social/youtube.redirect-uri';
+import { YOUTUBE_OAUTH_SCOPES } from '@gitroom/nestjs-libraries/integrations/social/youtube.scopes';
 
 const clientAndYoutube = () => {
   const redirectUri = youtubeRedirectUri();
@@ -61,16 +62,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   name = 'YouTube';
   isBetweenSteps = true;
   dto = YoutubeSettingsDto;
-  scopes = [
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/youtube',
-    'https://www.googleapis.com/auth/youtube.force-ssl',
-    'https://www.googleapis.com/auth/youtube.readonly',
-    'https://www.googleapis.com/auth/youtube.upload',
-    'https://www.googleapis.com/auth/youtubepartner',
-    'https://www.googleapis.com/auth/yt-analytics.readonly',
-  ];
+  scopes = [...YOUTUBE_OAUTH_SCOPES];
 
   editor = 'normal' as const;
   maxLength() {

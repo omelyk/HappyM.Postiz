@@ -1,5 +1,11 @@
 # HappyM change log
 
+## 1.0.0-alpha.14 - 2026-08-12
+
+- Reduced the YouTube OAuth grant to the profile, email, read-only channel, upload and read-only analytics capabilities used by Social Manager.
+- Removed the broad `youtube`, `youtube.force-ssl` and YouTube Partner scopes from authorization requests.
+- Added an explicit scope contract and regression coverage; private NuGet/npm SDK versions remain `1.0.0-alpha.13` because their public contracts are unchanged.
+
 ## 1.0.0-alpha.13 - 2026-08-12
 
 - Added tenant-scoped `workspace` embed sessions with direct allow-listed landings on `/launches` and `/media`.

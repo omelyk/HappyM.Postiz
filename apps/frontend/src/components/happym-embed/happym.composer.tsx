@@ -4,6 +4,8 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { StandaloneModal } from '@gitroom/frontend/components/standalone-modal/standalone.modal';
+import { AppLayout } from '@gitroom/frontend/components/launches/layout.standalone';
+import { canMountHappyMComposerShell } from './happym.composer.bootstrap';
 
 type EmbedSession = {
   active: boolean;
@@ -82,7 +84,7 @@ export const HappyMComposer: FC = () => {
       }
     };
     initialize();
-  }, [ticket]);
+  }, [fetch, ticket]);
 
   useEffect(() => {
     if (!session || readySent.current) {
@@ -135,38 +137,40 @@ export const HappyMComposer: FC = () => {
       </div>
     );
   }
-  if (!session) {
+  if (!canMountHappyMComposerShell(ticket, session)) {
     return null;
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-black">
-      <div className="text-textColor h-[calc(100vh+80px)] w-[calc(100vw+80px)] -m-[40px]">
-        <StandaloneModal
-          onClose={() => emit('embed.closeRequested')}
-          onSaved={(posts, type, integrations) => {
-            const eventType =
-              type === 'draft'
-                ? 'post.draftSaved'
-                : type === 'schedule'
-                ? 'post.scheduled'
-                : 'post.created';
-            for (const post of posts) {
-              const integration = integrations.find(
-                (item) => item.id === post.integration
-              );
-              emit(eventType, {
-                tenantId: session.tenantId,
-                pharmacyId: session.pharmacyId,
-                postizPostId: post.postId,
-                integrationId: post.integration,
-                provider: integration?.identifier,
-                status: type,
-              });
-            }
-          }}
-        />
+    <AppLayout userPath="/happym/embed-sessions/user">
+      <div className="h-screen w-screen overflow-hidden bg-black">
+        <div className="text-textColor h-[calc(100vh+80px)] w-[calc(100vw+80px)] -m-[40px]">
+          <StandaloneModal
+            onClose={() => emit('embed.closeRequested')}
+            onSaved={(posts, type, integrations) => {
+              const eventType =
+                type === 'draft'
+                  ? 'post.draftSaved'
+                  : type === 'schedule'
+                  ? 'post.scheduled'
+                  : 'post.created';
+              for (const post of posts) {
+                const integration = integrations.find(
+                  (item) => item.id === post.integration
+                );
+                emit(eventType, {
+                  tenantId: session.tenantId,
+                  pharmacyId: session.pharmacyId,
+                  postizPostId: post.postId,
+                  integrationId: post.integration,
+                  provider: integration?.identifier,
+                  status: type,
+                });
+              }
+            }}
+          />
+        </div>
       </div>
-    </div>
+    </AppLayout>
   );
 };

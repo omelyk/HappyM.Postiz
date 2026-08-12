@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.20 - 2026-08-12
+
+- Deferred the authenticated composer shell, user hydration and Copilot runtime until after the single-use ticket exchange, redirect and embed-session validation complete.
+- Removed authenticated data consumers from the shared HappyM embed bootstrap layout so Composer, Connect and Workspace can initialize without premature `/user` or Copilot requests.
+- Added a deterministic first-paint gate and regression coverage preventing the composer shell from mounting while a ticket is pending or the session is unvalidated, containing React hydration mismatch failures.
+- Private Vue remains `1.0.0-alpha.16`, NuGet remains `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.19 - 2026-08-12
 
 - Aligned valid composer embed sessions with the read/API dependencies used by tags, media, third-party assets, Copilot and the authenticated user profile.

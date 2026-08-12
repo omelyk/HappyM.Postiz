@@ -50,6 +50,8 @@ export class HappyMEmbedExchangeController {
           ? `/embed/happym/connect?provider=${encodeURIComponent(
               session.context.provider!
             )}`
+          : session.context.purpose === 'workspace'
+          ? session.context.landingPath
           : '/embed/happym/composer',
       expiresAt: session.context.expiresAt,
       correlationId: session.context.correlationId,
@@ -74,6 +76,7 @@ export class HappyMEmbedSessionController {
       expiresAt: context.expiresAt,
       purpose: context.purpose,
       provider: context.provider || null,
+      landingPath: context.landingPath || null,
     };
   }
 

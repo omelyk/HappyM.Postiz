@@ -16,8 +16,8 @@ export class ExchangeHappyMEmbedTicketDto {
   ticket: string;
 
   @IsOptional()
-  @IsIn(['composer', 'connect'])
-  purpose?: 'composer' | 'connect';
+  @IsIn(['composer', 'connect', 'workspace'])
+  purpose?: 'composer' | 'connect' | 'workspace';
 
   @IsOptional()
   @IsString()

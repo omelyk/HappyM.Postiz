@@ -24,7 +24,7 @@ export class HappyMEmbedService {
 
   async exchangeTicket(
     ticket: string,
-    expectedPurpose?: 'composer' | 'connect',
+    expectedPurpose?: 'composer' | 'connect' | 'workspace',
     expectedProvider?: string
   ) {
     const exchangeUrl = process.env.HAPPYM_EMBED_EXCHANGE_URL;
@@ -127,7 +127,7 @@ export class HappyMEmbedService {
 
   private async validateContext(
     context: HappyMEmbedSessionContext,
-    expectedPurpose: 'composer' | 'connect',
+    expectedPurpose?: 'composer' | 'connect' | 'workspace',
     expectedProvider?: string
   ) {
     const requiredStrings: Array<keyof HappyMEmbedSessionContext> = [
@@ -147,7 +147,7 @@ export class HappyMEmbedService {
       ) ||
       !Array.isArray(context.allowedIntegrationIds) ||
       context.allowedIntegrationIds.some((id) => typeof id !== 'string') ||
-      !['composer', 'connect'].includes(context.purpose)
+      !['composer', 'connect', 'workspace'].includes(context.purpose)
     ) {
       throw new ForbiddenException('HappyM embed context is malformed');
     }
@@ -155,9 +155,14 @@ export class HappyMEmbedService {
     const hasValidProvider =
       typeof context.provider === 'string' &&
       /^[a-z0-9][a-z0-9-]{0,63}$/.test(context.provider);
+    const hasValidWorkspaceLanding = ['/launches', '/media'].includes(
+      context.landingPath || ''
+    );
     if (
       (context.purpose === 'connect' && !hasValidProvider) ||
-      (context.purpose === 'composer' && context.provider) ||
+      (context.purpose !== 'connect' && context.provider) ||
+      (context.purpose === 'workspace' && !hasValidWorkspaceLanding) ||
+      (context.purpose !== 'workspace' && context.landingPath) ||
       (expectedPurpose && context.purpose !== expectedPurpose) ||
       (expectedProvider && context.provider !== expectedProvider)
     ) {

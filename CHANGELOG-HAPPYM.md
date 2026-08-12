@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.13 - 2026-08-12
+
+- Added tenant-scoped `workspace` embed sessions with direct allow-listed landings on `/launches` and `/media`.
+- Reused the opaque single-use ticket exchange and pharmacy organization/user mapping without routing through the composer.
+- Added purpose- and landing-specific API restrictions so workspace sessions cannot reach account administration or Connect OAuth endpoints.
+- Coordinated the image with `HappyM.Pharma.Postiz.*` and `@omelyk/happym-postiz-vue` `1.0.0-alpha.13`; `Postiz.NET` remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.12 - 2026-08-11
 
 - Added the YouTube-only `YOUTUBE_REDIRECT_URI` override without changing the public Social Manager host used by other providers.

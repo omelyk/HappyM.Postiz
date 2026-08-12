@@ -10,8 +10,9 @@ export interface HappyMEmbedSessionContext {
   origin: string;
   correlationId: string;
   expiresAt: string;
-  purpose: 'composer' | 'connect';
+  purpose: 'composer' | 'connect' | 'workspace';
   provider?: string | null;
+  landingPath?: '/launches' | '/media' | null;
 }
 
 export interface HappyMEmbedSessionClaims extends HappyMEmbedSessionContext {

@@ -31,6 +31,44 @@ export class HappyMEmbedMiddleware implements NestMiddleware {
       );
     }
 
+    if (claims.purpose === 'workspace') {
+      if (`${method} ${path}` === 'GET /user/self') {
+        return true;
+      }
+
+      if (claims.landingPath === '/media') {
+        return /^\/media(?:\/|$)/.test(path);
+      }
+
+      if (claims.landingPath !== '/launches') {
+        return false;
+      }
+
+      if (
+        /^\/(posts|media|comments|signatures|sets|analytics)(?:\/|$)/.test(
+          path
+        ) ||
+        `${method} ${path}` === 'GET /settings/shortlink'
+      ) {
+        return true;
+      }
+
+      if (
+        `${method} ${path}` === 'GET /integrations' ||
+        `${method} ${path}` === 'GET /integrations/list' ||
+        `${method} ${path}` === 'GET /integrations/customers' ||
+        `${method} ${path}` === 'POST /integrations/mentions' ||
+        `${method} ${path}` === 'POST /integrations/function'
+      ) {
+        return true;
+      }
+
+      const integrationId = path.match(/^\/integrations\/([^/]+)(?:\/|$)/)?.[1];
+      return (
+        !!integrationId && claims.allowedIntegrationIds.includes(integrationId)
+      );
+    }
+
     const composerRoutes = new Set([
       'GET /integrations/list',
       'POST /integrations/mentions',

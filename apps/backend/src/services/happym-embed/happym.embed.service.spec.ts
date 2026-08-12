@@ -140,6 +140,48 @@ describe('HappyMEmbedService', () => {
     expect(result.organizationId).toBe(context.postizOrganizationId);
   });
 
+  it('accepts an authoritative workspace ticket with an allow-listed landing path', async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...context,
+          purpose: 'workspace',
+          landingPath: '/launches',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const result = await service.exchangeTicket(
+      'opaque-workspace-ticket',
+      'workspace'
+    );
+    const claims = verify(
+      result.embedSession,
+      process.env.HAPPYM_EMBED_SESSION_SECRET!
+    ) as HappyMEmbedSessionClaims;
+
+    expect(claims.purpose).toBe('workspace');
+    expect(claims.landingPath).toBe('/launches');
+  });
+
+  it('rejects a workspace ticket with a landing path outside the allow-list', async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...context,
+          purpose: 'workspace',
+          landingPath: '/settings',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    await expect(
+      service.exchangeTicket('opaque-workspace-ticket', 'workspace')
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('rejects a browser purpose hint that conflicts with the ticket', async () => {
     global.fetch = jest.fn().mockResolvedValue(
       new Response(

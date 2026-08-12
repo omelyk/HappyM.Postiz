@@ -90,7 +90,8 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
         },
       },
     });
-    const applianceReady = !!organization?.apiKey && !!organization.users[0]?.user.id;
+    const applianceReady =
+      !!organization?.apiKey && !!organization.users[0]?.user.id;
     const temporal = this.temporalReadiness.snapshot;
     const ready = applianceReady && temporal.ready;
     const reason = ready
@@ -105,8 +106,8 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       reasonCode: ready
         ? null
         : temporal.reason
-          ? 'temporal_search_attr'
-          : 'starting',
+        ? 'temporal_search_attr'
+        : 'starting',
       remediationHint: ready ? null : 'retry_automatically',
       productName: config.productName,
       systemOrganizationId: ready ? organization.id : null,
@@ -146,6 +147,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
 
   async ensureOrganization(body: EnsureOrganizationRequest) {
     this.assertReady();
+    const config = this.configuration();
     const pharmacyCode = this.identifier(body.pharmacyCode, 'pharmacyCode');
     const organizationId = this.identifier(
       body.organizationId || `happym-pharmacy-${pharmacyCode.toLowerCase()}`,
@@ -177,6 +179,10 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       },
       select: { id: true, name: true, createdAt: true },
     });
+    await this.ensureAdminWorkspaceMembership(
+      organization.id,
+      config.adminEmail
+    );
     this.logger.log(`Ensured pharmacy organization ${organization.id}`);
     return { ...organization, pharmacyCode };
   }
@@ -344,7 +350,52 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
         role: Role.SUPERADMIN,
       },
     });
+    await this.ensureAdminWorkspaceMemberships(user.id);
     return { organizationId: withKey.id, apiKey: withKey.apiKey! };
+  }
+
+  private async ensureAdminWorkspaceMembership(
+    organizationId: string,
+    adminEmail: string
+  ) {
+    const admin = await this.prisma.user.findFirst({
+      where: { email: adminEmail, providerName: Provider.LOCAL },
+      select: { id: true },
+    });
+    if (!admin) return;
+    await this.upsertAdminWorkspaceMembership(admin.id, organizationId);
+  }
+
+  private async ensureAdminWorkspaceMemberships(adminUserId: string) {
+    const organizations = await this.prisma.organization.findMany({
+      select: { id: true },
+    });
+    await Promise.all(
+      organizations.map(({ id }) =>
+        this.upsertAdminWorkspaceMembership(adminUserId, id)
+      )
+    );
+  }
+
+  private upsertAdminWorkspaceMembership(
+    adminUserId: string,
+    organizationId: string
+  ) {
+    return this.prisma.userOrganization.upsert({
+      where: {
+        userId_organizationId: {
+          userId: adminUserId,
+          organizationId,
+        },
+      },
+      update: { disabled: false, role: Role.SUPERADMIN },
+      create: {
+        userId: adminUserId,
+        organizationId,
+        disabled: false,
+        role: Role.SUPERADMIN,
+      },
+    });
   }
 
   private assertReady() {

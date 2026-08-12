@@ -1,15 +1,22 @@
 'use client';
 
-import React, { FC, useCallback, useMemo } from 'react';
+import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import useSWR from 'swr';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import clsx from 'clsx';
+import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import {
+  HAPPYM_OPEN_WORKSPACE_SELECTOR,
+  happyMWorkspaceKind,
+} from '@gitroom/frontend/components/happym-appliance/happym.workspace-selector';
 export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
   asOpenSelect,
 }) => {
   const fetch = useFetch();
+  const t = useT();
   const user = useUser();
+  const [isOpen, setIsOpen] = useState(!!asOpenSelect);
   const applianceMode =
     process.env.NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE === 'true';
   const systemOrganizationId =
@@ -28,9 +35,13 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
   const current = useMemo(() => {
     return data?.find((d: any) => d.id === user?.orgId);
   }, [data]);
-  const withoutCurrent = useMemo(() => {
-    return data?.filter((d: any) => d.id !== user?.orgId);
-  }, [current, data]);
+  useEffect(() => {
+    if (!applianceMode || asOpenSelect) return;
+    const open = () => setIsOpen(true);
+    window.addEventListener(HAPPYM_OPEN_WORKSPACE_SELECTOR, open);
+    return () =>
+      window.removeEventListener(HAPPYM_OPEN_WORKSPACE_SELECTOR, open);
+  }, [applianceMode, asOpenSelect]);
   const changeOrg = useCallback(
     (org: { name: string; id: string }) => async () => {
       await fetch('/user/change-org', {
@@ -39,6 +50,7 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
           id: org.id,
         }),
       });
+      setIsOpen(false);
       window.location.reload();
     },
     []
@@ -52,13 +64,33 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
         <div className="group text-[12px] relative">
           {asOpenSelect && (
             <div className="bg-btnPrimary !flex !relative max-w-[500px] mx-auto py-[12px] px-[12px]">
-              {applianceMode ? 'Seleziona workspace farmacia' : 'Select Organization'}
+              {applianceMode
+                ? t(
+                    'happym_select_pharmacy_workspace',
+                    'Select pharmacy workspace'
+                  )
+                : 'Select Organization'}
             </div>
           )}
           {!asOpenSelect && (
-            <div className="flex items-center gap-[8px] cursor-pointer" aria-label={applianceMode ? 'Workspace farmacia' : 'Organization'}>
+            <button
+              type="button"
+              onClick={() => setIsOpen((value) => !value)}
+              className="flex items-center gap-[8px] cursor-pointer text-start"
+              aria-label={
+                applianceMode
+                  ? t('happym_workspace_selector_label', 'Pharmacy workspace')
+                  : 'Organization'
+              }
+              aria-haspopup="listbox"
+              aria-expanded={isOpen}
+            >
               <svg
-                className={user?.tier.current === 'FREE' ? 'animate-bounce drop-shadow-glow': ''}
+                className={
+                  user?.tier.current === 'FREE'
+                    ? 'animate-bounce drop-shadow-glow'
+                    : ''
+                }
                 width="24"
                 height="24"
                 viewBox="0 0 26 26"
@@ -73,33 +105,48 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
               {applianceMode && (
                 <div className="hidden max-w-[180px] flex-col leading-tight xl:flex">
                   <span className="text-[10px] uppercase tracking-wide text-textItemBlur">
-                    {current?.id === systemOrganizationId ? 'Workspace sistema' : 'Farmacia'}
+                    {happyMWorkspaceKind(
+                      current?.id || user?.orgId || '',
+                      systemOrganizationId
+                    ) === 'system'
+                      ? t('happym_system_workspace_short', 'System workspace')
+                      : t('happym_pharmacy_workspace_short', 'Pharmacy')}
                   </span>
                   <span className="truncate font-semibold text-newTextColor">
                     {current?.id || user?.orgId}
                   </span>
                 </div>
               )}
-            </div>
+            </button>
           )}
-          {data?.length > 1 && (
+          {(data?.length > 1 || (applianceMode && data?.length === 1)) && (
             <div
+              role="listbox"
               className={clsx(
-                'hidden min-w-[280px] rounded-[8px] py-[12px] px-[12px] group-hover:flex absolute top-[100%] end-0 z-50 bg-third border-tableBorder border gap-[8px] cursor-pointer flex-col',
-                asOpenSelect ? '!flex !relative max-w-[500px] mx-auto mb-[10px]' : '',
+                'hidden min-w-[320px] rounded-[8px] py-[12px] px-[12px] absolute top-[100%] end-0 z-50 bg-third border-tableBorder border gap-[8px] cursor-pointer flex-col',
+                isOpen && '!flex',
+                asOpenSelect
+                  ? '!flex !relative max-w-[500px] mx-auto mb-[10px]'
+                  : ''
               )}
             >
               {applianceMode && (
                 <div className="border-b border-tableBorder pb-[8px] text-[11px] font-semibold uppercase tracking-wide text-textItemBlur">
-                  Workspace / Farmacia
+                  {t(
+                    'happym_workspace_glossary_heading',
+                    'Workspace / Pharmacy'
+                  )}
                 </div>
               )}
               {data?.map((org: { name: string; id: string }) => (
-                <div
+                <button
+                  type="button"
                   key={org.id}
                   onClick={changeOrg(org)}
+                  role="option"
+                  aria-selected={org.id === user?.orgId}
                   className={clsx(
-                    'rounded-[6px] px-[8px] py-[7px] hover:bg-newBgLineColor',
+                    'rounded-[6px] px-[8px] py-[7px] text-start hover:bg-newBgLineColor',
                     org.id === user?.orgId && 'bg-newBgLineColor'
                   )}
                 >
@@ -108,15 +155,30 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
                       <span className="font-semibold">{org.id}</span>
                       <span className="text-textItemBlur">
                         {org.id === systemOrganizationId
-                          ? 'Sistema · amministrazione motore'
-                          : org.name || 'Workspace farmacia'}
+                          ? t(
+                              'happym_system_workspace_option',
+                              'System · engine administration'
+                            )
+                          : org.name ||
+                            t(
+                              'happym_pharmacy_workspace_short',
+                              'Pharmacy workspace'
+                            )}
                       </span>
                     </div>
                   ) : (
                     org.name
                   )}
-                </div>
+                </button>
               ))}
+              {applianceMode && data?.length === 1 && (
+                <div className="rounded-[6px] border border-orange-400/30 bg-orange-400/10 px-[8px] py-[9px] text-textItemBlur">
+                  {t(
+                    'happym_workspace_not_found',
+                    'Workspace not found — use Ensure workspace from the CRM.'
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

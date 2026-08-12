@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.16 - 2026-08-12
+
+- Made the System-workspace CTA open an accessible, click-controlled workspace switcher instead of merely focusing a hover-only control.
+- Granted the configured appliance SuperAdmin explicit membership in every CRM-provisioned pharmacy workspace, including existing workspaces during bootstrap and newly ensured workspaces at runtime.
+- Added canonical Italian and English workspace terminology, system/pharmacy labels and the CRM Ensure-workspace remediation message.
+- Coordinated the host-facing tenant glossary with `@omelyk/happym-postiz-vue` `1.0.0-alpha.16`; private NuGet SDKs remain `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.15 - 2026-08-12
 
 - Replaced the login's externally referenced SVG composition with the self-contained Social Manager NetForges wordmark and added an accessible NetForges appliance footer.

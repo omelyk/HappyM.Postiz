@@ -740,5 +740,14 @@
   "yes_cancel_coupon": "Yes, cancel coupon",
   "cancel_coupon_title": "Cancel Coupon?",
   "cancel_coupon_failed": "Could not cancel the coupon",
-  "cancel_coupon_success": "Coupon cancelled"
+  "cancel_coupon_success": "Coupon cancelled",
+  "happym_system_workspace_title": "System workspace",
+  "happym_system_workspace_description": "No channels are shown in the System workspace. Select a pharmacy workspace to view and manage only its integrations.",
+  "happym_select_pharmacy_workspace": "Select pharmacy workspace",
+  "happym_workspace_selector_label": "Pharmacy workspace",
+  "happym_system_workspace_short": "System workspace",
+  "happym_pharmacy_workspace_short": "Pharmacy",
+  "happym_workspace_glossary_heading": "Workspace / Pharmacy",
+  "happym_system_workspace_option": "System · engine administration",
+  "happym_workspace_not_found": "Workspace not found — use Ensure workspace from the CRM."
 }

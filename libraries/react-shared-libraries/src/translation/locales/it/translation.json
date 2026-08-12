@@ -738,5 +738,14 @@
   "yes_cancel_coupon": "Sì, annulla il coupon",
   "cancel_coupon_title": "Annulla coupon?",
   "cancel_coupon_failed": "Impossibile annullare il coupon",
-  "cancel_coupon_success": "Coupon annullato"
+  "cancel_coupon_success": "Coupon annullato",
+  "happym_system_workspace_title": "Workspace di sistema",
+  "happym_system_workspace_description": "Nessun canale è mostrato nel workspace di sistema. Seleziona il workspace della farmacia per vedere e gestire esclusivamente le sue integrazioni.",
+  "happym_select_pharmacy_workspace": "Seleziona workspace farmacia",
+  "happym_workspace_selector_label": "Workspace farmacia",
+  "happym_system_workspace_short": "Workspace sistema",
+  "happym_pharmacy_workspace_short": "Farmacia",
+  "happym_workspace_glossary_heading": "Workspace / Farmacia",
+  "happym_system_workspace_option": "Sistema · amministrazione motore",
+  "happym_workspace_not_found": "Workspace non trovato — usa Assicura workspace dal CRM."
 }

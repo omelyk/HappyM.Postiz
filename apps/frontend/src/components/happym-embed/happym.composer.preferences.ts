@@ -1,9 +1,11 @@
 export type HappyMComposerLanguage = 'en' | 'it';
 export type HappyMComposerTheme = 'light' | 'dark';
+export type HappyMComposerChrome = 'host' | 'social-manager';
 
 export type HappyMComposerPreferences = {
   language: HappyMComposerLanguage;
   theme: HappyMComposerTheme;
+  chrome: HappyMComposerChrome;
 };
 
 const normalizeLanguage = (value: string | null): HappyMComposerLanguage =>
@@ -16,10 +18,16 @@ export const resolveHappyMComposerPreferences = (
   lang: string | null,
   lng: string | null,
   theme: string | null,
-  mode: string | null
+  mode: string | null,
+  chrome: string | null = null,
+  embedChrome: string | null = null
 ): HappyMComposerPreferences => ({
   language: normalizeLanguage(lang || lng),
   theme: normalizeTheme(theme || mode),
+  chrome:
+    (chrome || embedChrome)?.trim().toLowerCase() === 'host'
+      ? 'host'
+      : 'social-manager',
 });
 
 export const appendHappyMComposerPreferences = (
@@ -27,7 +35,7 @@ export const appendHappyMComposerPreferences = (
   preferences: HappyMComposerPreferences
 ) => {
   const separator = redirectUrl.includes('?') ? '&' : '?';
-  return `${redirectUrl}${separator}lang=${preferences.language}&theme=${preferences.theme}`;
+  return `${redirectUrl}${separator}lang=${preferences.language}&theme=${preferences.theme}&chrome=${preferences.chrome}`;
 };
 
 export const persistHappyMComposerPreferences = (
@@ -41,6 +49,7 @@ export const persistHappyMComposerPreferences = (
   window.localStorage.setItem('language', language);
   window.localStorage.setItem('NEXT_LOCALE', language);
   window.localStorage.setItem('happym_embed_theme', theme);
+  window.localStorage.setItem('happym_embed_chrome', preferences.chrome);
   document.documentElement.lang = language;
   document.documentElement.classList.toggle('dark', theme === 'dark');
   document.body.classList.toggle('dark', theme === 'dark');

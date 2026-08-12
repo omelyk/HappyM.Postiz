@@ -23,6 +23,7 @@ export interface AddEditModalProps {
   mutate: () => void;
   padding?: string;
   customClose?: () => void;
+  hostChrome?: boolean;
   onSaved?: (
     posts: Array<{ postId: string; integration: string }>,
     type: 'draft' | 'schedule' | 'now' | 'update'

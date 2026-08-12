@@ -38,9 +38,13 @@ export const HappyMComposer: FC = () => {
   const ticket = searchParams.get('ticket');
   const lang = searchParams.get('lang');
   const lng = searchParams.get('lng');
+  const culture = searchParams.get('culture');
   const theme = searchParams.get('theme');
   const mode = searchParams.get('mode');
+  const chrome = searchParams.get('chrome');
+  const embedChrome = searchParams.get('embedChrome');
   const [session, setSession] = useState<EmbedSession>();
+  const [hostChrome, setHostChrome] = useState(false);
   const [error, setError] = useState('');
   const readySent = useRef(false);
 
@@ -66,12 +70,17 @@ export const HappyMComposer: FC = () => {
     const initialize = async () => {
       try {
         const preferences = resolveHappyMComposerPreferences(
-          lang || lng || window.localStorage.getItem('i18nextLng'),
+          lang || lng || culture || window.localStorage.getItem('i18nextLng'),
           null,
           theme || mode || window.localStorage.getItem('happym_embed_theme'),
+          null,
+          chrome ||
+            embedChrome ||
+            window.localStorage.getItem('happym_embed_chrome'),
           null
         );
         persistHappyMComposerPreferences(preferences);
+        setHostChrome(preferences.chrome === 'host');
         await i18next.changeLanguage(preferences.language);
 
         if (ticket) {
@@ -105,7 +114,7 @@ export const HappyMComposer: FC = () => {
       }
     };
     initialize();
-  }, [fetch, lang, lng, mode, theme, ticket]);
+  }, [chrome, culture, embedChrome, fetch, lang, lng, mode, theme, ticket]);
 
   useEffect(() => {
     if (!session || readySent.current) {
@@ -136,12 +145,18 @@ export const HappyMComposer: FC = () => {
         return;
       }
 
-      if (message.type === 'theme.changed' || message.type === 'embed.init') {
+      if (
+        message.type === 'theme.changed' ||
+        message.type === 'embed.init' ||
+        message.type === 'embed.hostUi'
+      ) {
         const nextPreferences = resolveHappyMComposerPreferences(
           typeof message.payload?.lang === 'string'
             ? message.payload.lang
             : typeof message.payload?.lng === 'string'
             ? message.payload.lng
+            : typeof message.payload?.culture === 'string'
+            ? message.payload.culture
             : i18next.language,
           null,
           typeof message.payload?.theme === 'string'
@@ -151,9 +166,18 @@ export const HappyMComposer: FC = () => {
             : document.documentElement.classList.contains('dark')
             ? 'dark'
             : 'light',
-          null
+          null,
+          typeof message.payload?.chrome === 'string'
+            ? message.payload.chrome
+            : hostChrome
+            ? 'host'
+            : 'social-manager',
+          typeof message.payload?.embedChrome === 'string'
+            ? message.payload.embedChrome
+            : null
         );
         persistHappyMComposerPreferences(nextPreferences);
+        setHostChrome(nextPreferences.chrome === 'host');
         void i18next.changeLanguage(nextPreferences.language);
       }
       if (message.type === 'composer.close') {
@@ -165,11 +189,11 @@ export const HappyMComposer: FC = () => {
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [session, emit]);
+  }, [session, emit, hostChrome]);
 
   if (error) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-newBgColor p-8 text-textColor">
+      <div className="flex h-full w-full items-center justify-center bg-newBgColor p-8 text-textColor">
         <div role="alert">{error}</div>
       </div>
     );
@@ -180,9 +204,10 @@ export const HappyMComposer: FC = () => {
 
   return (
     <AppLayout userPath="/happym/embed-sessions/user">
-      <div className="h-screen w-screen overflow-hidden bg-black">
-        <div className="text-textColor h-[calc(100vh+80px)] w-[calc(100vw+80px)] -m-[40px]">
+      <div className="h-full w-full min-w-0 overflow-hidden bg-newBgColor text-textColor">
+        <div className="h-full w-full min-w-0 overflow-hidden">
           <StandaloneModal
+            hostChrome={hostChrome}
             onClose={() => emit('embed.closeRequested')}
             onSaved={(posts, type, integrations) => {
               const eventType =

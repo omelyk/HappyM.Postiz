@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.22 - 2026-08-12
+
+- Added a real host-chrome Composer mode driven by `chrome=host`, `embedChrome=host`, `embed.hostUi` or `embed.init`, hiding the redundant Social Manager titles and close control.
+- Replaced viewport and negative-offset sizing with a constrained `100%` iframe layout, removing forced black/full-bleed backgrounds and adapting the editor/preview columns to the CRM modal.
+- Extended host preference precedence to `culture` and runtime host UI messages while preserving light/dark and IT/EN values through the post-exchange redirect.
+- Private Vue remains `1.0.0-alpha.16`, NuGet remains `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.21 - 2026-08-12
 
 - Added CRM-controlled Composer language (`lang`/`lng`) and theme (`theme`/`mode`) normalization for Italian/English and light/dark modes.

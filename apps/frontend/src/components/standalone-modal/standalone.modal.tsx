@@ -15,7 +15,8 @@ export const StandaloneModal: FC<{
     type: 'draft' | 'schedule' | 'now' | 'update',
     integrations: any[]
   ) => void;
-}> = ({ onClose, onSaved }) => {
+  hostChrome?: boolean;
+}> = ({ onClose, onSaved, hostChrome = false }) => {
   const fetch = useFetch();
   const params = useParams<{ platform: string }>();
 
@@ -70,6 +71,7 @@ export const StandaloneModal: FC<{
       reopenModal={() => {}}
       allIntegrations={integrations}
       date={dayjs.utc(data).local()}
+      hostChrome={hostChrome}
     />
   );
 };

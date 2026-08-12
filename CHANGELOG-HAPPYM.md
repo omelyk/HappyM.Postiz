@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.24 - 2026-08-13
+
+- Added the coordinated direct Workspace bootstrap contract for `/launches` and `/media`, avoiding the intermediate Composer navigation while retaining the single-use ticket exchange.
+- Limited transparent styling to the embedded shell and made custom and Mantine modal, drawer, popover and media-picker surfaces opaque, including portal-mounted overlays.
+- Replaced the standalone Composer viewport height with a constrained full-height layout so nested dialogs remain visible and usable inside the CRM iframe.
+- Private Vue remains `1.0.0-alpha.16`, NuGet advances to `1.0.0-alpha.17` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.23 - 2026-08-12
 
 - Propagated the constrained iframe height through every standalone Composer wrapper, from `AppLayout` through the preview, modal-manager and content roots.

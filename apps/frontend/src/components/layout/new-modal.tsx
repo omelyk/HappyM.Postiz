@@ -132,6 +132,8 @@ export const Component: FC<{
   if (modal.removeLayout) {
     return (
       <div
+        id={modal.id}
+        data-happym-modal-backdrop
         style={{ zIndex }}
         className={clsx(
           !modal.fullScreen
@@ -150,6 +152,8 @@ export const Component: FC<{
             )}
           >
             <div
+              role="dialog"
+              aria-modal="true"
               className={clsx(
                 modal.fullScreen ? 'w-full h-full flex-1' : 'mx-auto py-[48px]'
               )}
@@ -168,6 +172,8 @@ export const Component: FC<{
   return (
     <CurrentModalContext.Provider value={{ id: modal.id }}>
       <div
+        id={modal.id}
+        data-happym-modal-backdrop
         onClick={closeModalFunction}
         style={{ zIndex }}
         className={clsx(
@@ -195,6 +201,8 @@ export const Component: FC<{
             )}
           >
             <div
+              role="dialog"
+              aria-modal="true"
               className={clsx(
                 !modal.removeLayout && 'gap-[40px] p-[32px]',
                 'bg-newBgColorInner mx-auto flex flex-col w-fit rounded-[24px] relative',

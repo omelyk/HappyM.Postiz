@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.management';
@@ -29,15 +36,16 @@ export class HappyMEmbedExchangeController {
       body.provider
     );
     const secured = !process.env.NOT_SECURED;
+    const cookieDomain = secured
+      ? getCookieUrlFromDomain(process.env.FRONTEND_URL!)
+      : undefined;
     const cookieOptions = {
       path: '/',
       httpOnly: true,
       secure: secured,
       sameSite: secured ? ('none' as const) : ('lax' as const),
       maxAge: session.ttlSeconds * 1000,
-      ...(secured
-        ? { domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!) }
-        : {}),
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     };
 
     response.cookie('auth', session.auth, cookieOptions);
@@ -82,9 +90,15 @@ export class HappyMEmbedSessionController {
 
   @Get('/user')
   composerUser(
-    @GetHappyMEmbedContext() context: HappyMEmbedSessionClaims,
+    @GetHappyMEmbedContext() context: HappyMEmbedSessionClaims | undefined,
     @GetOrgFromRequest() organization: Organization
   ) {
+    if (!context) {
+      throw new UnauthorizedException({
+        code: 'happym_embed_session_required',
+        message: 'A valid Social Manager embed session is required.',
+      });
+    }
     return {
       id: context.postizUserId,
       orgId: context.postizOrganizationId,

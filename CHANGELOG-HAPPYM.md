@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.18 - 2026-08-12
+
+- Changed auth, organization and embed cookies to host-only on `.local`, localhost, IP and other non-registrable/special-use hosts while retaining `Secure` and `SameSite=None` for HTTPS appliance embeds.
+- Kept shared-domain cookies for safe ICANN/private registrable domains, preserving hosted deployments and applying the same policy to Composer, Connect and admin SSO authentication.
+- Hardened the embed-session user endpoint to return a structured 401 when its session cookie/context is missing instead of throwing a 500 null dereference.
+- Private Vue remains `1.0.0-alpha.16`, NuGet remains `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.17 - 2026-08-12
 
 - Kept the service administrator configured by `HAPPYM_APPLIANCE_ADMIN_*` as the SSO identity while provisioning the opt-in local demo SuperAdmin as a separate account.

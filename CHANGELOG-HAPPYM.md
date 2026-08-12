@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.23 - 2026-08-12
+
+- Propagated the constrained iframe height through every standalone Composer wrapper, from `AppLayout` through the preview, modal-manager and content roots.
+- Added opt-in `fillViewport` flex contracts with `min-height: 0`, full width/height and overflow containment, preventing editor and preview columns from collapsing behind the toolbar.
+- Ensured the embed document/root chain has full height while preserving the `chrome=host`, CRM theme/language and authenticated bootstrap behavior from `1.0.0-alpha.22`.
+- Private Vue remains `1.0.0-alpha.16`, NuGet remains `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.22 - 2026-08-12
 
 - Added a real host-chrome Composer mode driven by `chrome=host`, `embedChrome=host`, `embed.hostUi` or `embed.init`, hiding the redundant Social Manager titles and close control.

@@ -21,19 +21,25 @@ export const AppLayout = ({
   }, [params]);
   return (
     <div
-      className={`hideCopilot ${style} h-[100vh] w-full text-textColor flex flex-1 flex-col !bg-none`}
+      className={`hideCopilot ${style} h-[100vh] min-h-0 w-full min-w-0 overflow-hidden text-textColor flex flex-1 flex-col !bg-none`}
     >
       <style>
         {`
           #add-edit-modal, .hideCopilot {
             background: transparent !important;
           }
+          html, body, body > div {
+            height: 100% !important;
+            min-height: 100% !important;
+          }
           html body.dark, html {
             background: transparent !important;
           }
         `}
       </style>
-      <PreviewWrapper userPath={userPath}>{children}</PreviewWrapper>
+      <PreviewWrapper userPath={userPath} fillViewport>
+        {children}
+      </PreviewWrapper>
     </div>
   );
 };

@@ -297,12 +297,28 @@ export const ModalManagerInner: FC = () => {
     </>
   );
 };
-export const ModalManager: FC<{ children: ReactNode }> = ({ children }) => {
+export const ModalManager: FC<{
+  children: ReactNode;
+  fillViewport?: boolean;
+}> = ({ children, fillViewport = false }) => {
   return (
-    <div>
+    <div
+      className={clsx(
+        fillViewport &&
+          'flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden'
+      )}
+    >
       <ModalManagerEmitter />
       <ModalManagerInner />
-      <div className="transition-all w-full">{children}</div>
+      <div
+        className={clsx(
+          'transition-all w-full',
+          fillViewport &&
+            'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden'
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 };

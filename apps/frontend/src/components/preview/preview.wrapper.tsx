@@ -12,9 +12,11 @@ import { ToolTip } from '@gitroom/frontend/components/layout/top.tip';
 export const PreviewWrapper = ({
   children,
   userPath = '/user/self',
+  fillViewport = false,
 }: {
   children: ReactNode;
   userPath?: string;
+  fillViewport?: boolean;
 }) => {
   const fetch = useFetch();
   const { backendUrl } = useVariables();
@@ -35,10 +37,18 @@ export const PreviewWrapper = ({
         runtimeUrl={backendUrl + '/copilot/chat'}
         showDevConsole={false}
       >
-        <MantineWrapper>
+        <MantineWrapper fillViewport={fillViewport}>
           <Toaster />
           <ToolTip />
-          {children}
+          <div
+            className={
+              fillViewport
+                ? 'flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden'
+                : undefined
+            }
+          >
+            {children}
+          </div>
         </MantineWrapper>
       </CopilotKit>
     </ContextWrapper>

@@ -21,7 +21,14 @@ type Inputs = {
   providerToken: '';
   provider: 'LOCAL';
 };
-export function Login() {
+type LoginProps = {
+  devLoginHint?: {
+    email: string;
+    password: string;
+  };
+};
+
+export function Login({ devLoginHint }: LoginProps) {
   const t = useT();
   const applianceMode =
     process.env.NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE === 'true';
@@ -40,6 +47,19 @@ export function Login() {
     },
   });
   const fetchData = useFetch();
+  const fillDevLogin = () => {
+    if (!devLoginHint) {
+      return;
+    }
+    form.setValue('email', devLoginHint.email, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('password', devLoginHint.password, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
   const onSubmit: SubmitHandler<Inputs> = async (data) => {
     setLoading(true);
     setNotActivated(false);
@@ -159,6 +179,20 @@ export function Login() {
                     {t('forgot_password', 'Forgot password')}
                   </Link>
                 </p>
+                {applianceMode && devLoginHint && (
+                  <div className="mt-4 flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={fillDevLogin}
+                      className="rounded-full border border-[#f58254]/60 bg-[#f58254]/10 px-4 py-2 text-sm text-[#ff9a72] transition-colors hover:bg-[#f58254]/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f58254]"
+                    >
+                      SuperAdmin (demo locale)
+                    </button>
+                    <span className="text-xs text-gray-400">
+                      Solo ambiente di test · nessun accesso automatico
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

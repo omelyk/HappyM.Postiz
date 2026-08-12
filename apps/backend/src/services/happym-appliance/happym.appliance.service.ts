@@ -10,6 +10,7 @@ import { PrismaService } from '@gitroom/nestjs-libraries/database/prisma/prisma.
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { Provider, Role } from '@prisma/client';
 import { TemporalSearchAttributesReadiness } from '@gitroom/nestjs-libraries/temporal/temporal.register';
+import { happyMDevLoginHint } from '@gitroom/nestjs-libraries/happym-appliance/happym.dev-login';
 
 export type EnsureOrganizationRequest = {
   organizationId?: string;
@@ -312,7 +313,12 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
           providerName: Provider.LOCAL,
         },
       },
-      update: { activated: true },
+      update: {
+        activated: true,
+        ...(config.devLoginHint
+          ? { password: AuthService.hashPassword(config.adminPassword) }
+          : {}),
+      },
       create: {
         email: config.adminEmail,
         name: config.productName,
@@ -357,11 +363,19 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     if (!this.enabled) {
       throw new ServiceUnavailableException('Appliance mode is not enabled');
     }
+    const devLoginHint = happyMDevLoginHint();
     const adminEmail = this.email(
-      process.env.HAPPYM_APPLIANCE_ADMIN_EMAIL || ''
+      devLoginHint?.email || process.env.HAPPYM_APPLIANCE_ADMIN_EMAIL || ''
     );
-    const adminPassword = process.env.HAPPYM_APPLIANCE_ADMIN_PASSWORD || '';
-    this.password(adminPassword);
+    const adminPassword =
+      devLoginHint?.password ||
+      process.env.HAPPYM_APPLIANCE_ADMIN_PASSWORD ||
+      '';
+    if (devLoginHint) {
+      this.devPassword(adminPassword);
+    } else {
+      this.password(adminPassword);
+    }
     const internalClientId =
       process.env.HAPPYM_APPLIANCE_INTERNAL_CLIENT_ID || '';
     const internalClientSecret =
@@ -374,6 +388,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     return {
       adminEmail,
       adminPassword,
+      devLoginHint: !!devLoginHint,
       internalClientId,
       internalClientSecret,
       systemOrganizationId: this.identifier(
@@ -412,6 +427,15 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     if (!value || value.length < 12 || value.length > 256) {
       throw new ServiceUnavailableException(
         'Appliance administrator password must contain 12 to 256 characters'
+      );
+    }
+    return value;
+  }
+
+  private devPassword(value: string) {
+    if (!value || value.length < 10 || value.length > 256) {
+      throw new ServiceUnavailableException(
+        'Local demo administrator password must contain 10 to 256 characters'
       );
     }
     return value;

@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.15 - 2026-08-12
+
+- Replaced the login's externally referenced SVG composition with the self-contained Social Manager NetForges wordmark and added an accessible NetForges appliance footer.
+- Added an explicitly gated local-demo SuperAdmin hint that fills, but never submits, the login form only when appliance mode and `HAPPYM_DEV_LOGIN_HINT=true` are both enabled.
+- Aligned local-demo bootstrap credentials with `HAPPYM_DEV_LOGIN_EMAIL`/`HAPPYM_DEV_LOGIN_PASSWORD`; the `superadmin` alias maps to `superadmin@happym.local` and defaults to `Demo123456` only behind the explicit dev gate.
+- Private NuGet/npm SDK versions remain `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10` because their public contracts are unchanged.
+
 ## 1.0.0-alpha.14 - 2026-08-12
 
 - Reduced the YouTube OAuth grant to the profile, email, read-only channel, upload and read-only analytics capabilities used by Social Manager.

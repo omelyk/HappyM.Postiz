@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.21 - 2026-08-12
+
+- Added CRM-controlled Composer language (`lang`/`lng`) and theme (`theme`/`mode`) normalization for Italian/English and light/dark modes.
+- Preserved the normalized host preferences across the post-exchange redirect using host-only session cookies and same-host local storage, without changing authentication cookie scope.
+- Applied language, document metadata and color scheme before mounting the authenticated composer shell, and kept runtime `embed.init`/`theme.changed` messages synchronized with the same policy.
+- Private Vue remains `1.0.0-alpha.16`, NuGet remains `1.0.0-alpha.13` and Postiz.NET remains `1.0.0-alpha.10`.
+
 ## 1.0.0-alpha.20 - 2026-08-12
 
 - Deferred the authenticated composer shell, user hydration and Copilot runtime until after the single-use ticket exchange, redirect and embed-session validation complete.

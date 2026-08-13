@@ -4,6 +4,7 @@ module.exports = {
   testMatch: [
     '<rootDir>/src/services/happym-embed/**/*.spec.ts',
     '<rootDir>/src/services/happym-appliance/**/*.spec.ts',
+    '<rootDir>/src/public-api/**/*.spec.ts',
   ],
   transform: {
     '^.+\\.ts$': [

@@ -4,6 +4,8 @@ import {
   Delete,
   Get,
   HttpException,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Put,
@@ -93,6 +95,7 @@ export class PublicIntegrationsController {
       forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-alpha.8',
       capabilities: [
         'analytics',
+        'chat',
         'integration-settings',
         'media',
         'notifications',
@@ -203,6 +206,32 @@ export class PublicIntegrationsController {
       getFile.originalname,
       getFile.path
     );
+  }
+
+  @Get('/media')
+  async getMedia(
+    @GetOrgFromRequest() org: Organization,
+    @Query('page') page = 1,
+    @Query('search') search?: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._mediaService.getMedia(org.id, page, search);
+  }
+
+  @Delete('/media/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteMedia(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    const result = await this._mediaService.deleteMediaIfExists(org.id, id);
+    if (result.count === 0) {
+      throw new HttpException(
+        { code: 'media_not_found', message: 'Media was not found.' },
+        HttpStatus.NOT_FOUND
+      );
+    }
   }
 
   @Get('/find-slot/:id')

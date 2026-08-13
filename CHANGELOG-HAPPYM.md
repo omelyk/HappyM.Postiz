@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.25 - 2026-08-13
+
+- Added organization-scoped Public API routes to list and soft-delete media while preserving the existing upload contracts.
+- Added native M2M AI chat message/thread routes backed by the existing Mastra agent and memory, without browser cookies or embed sessions.
+- Enforced thread ownership at the pharmacy organization boundary and returned stable structured error codes without logging prompts or provider errors.
+- Private Vue remains `1.0.0-alpha.16`, NuGet advances to `1.0.0-alpha.18` and Postiz.NET advances to `1.0.0-alpha.11`.
+
 ## 1.0.0-alpha.24 - 2026-08-13
 
 - Added the coordinated direct Workspace bootstrap contract for `/launches` and `/media`, avoiding the intermediate Composer navigation while retaining the single-use ticket exchange.

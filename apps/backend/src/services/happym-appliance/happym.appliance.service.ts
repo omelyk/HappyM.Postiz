@@ -11,6 +11,7 @@ import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { Provider, Role } from '@prisma/client';
 import { TemporalSearchAttributesReadiness } from '@gitroom/nestjs-libraries/temporal/temporal.register';
 import { happyMDevLoginHint } from '@gitroom/nestjs-libraries/happym-appliance/happym.dev-login';
+import { mastraStoreReadiness } from '@gitroom/nestjs-libraries/chat/mastra.readiness';
 
 export type EnsureOrganizationRequest = {
   organizationId?: string;
@@ -93,10 +94,11 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     const applianceReady =
       !!organization?.apiKey && !!organization.users[0]?.user.id;
     const temporal = this.temporalReadiness.snapshot;
-    const ready = applianceReady && temporal.ready;
+    const mastra = mastraStoreReadiness.snapshot;
+    const ready = applianceReady && temporal.ready && mastra.ready;
     const reason = ready
       ? null
-      : temporal.reason || 'appliance_bootstrap_unavailable';
+      : mastra.reason || temporal.reason || 'appliance_bootstrap_unavailable';
     return {
       up: true,
       apiOk: true,
@@ -105,6 +107,8 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       reason,
       reasonCode: ready
         ? null
+        : mastra.reasonCode
+        ? mastra.reasonCode
         : temporal.reason
         ? 'temporal_search_attr'
         : 'starting',

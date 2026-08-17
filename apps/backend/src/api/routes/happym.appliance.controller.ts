@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Header, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Post,
+  Put,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
   EnsureOrganizationRequest,
@@ -17,8 +25,12 @@ export class HappyMApplianceHealthController {
 
   @Get('/')
   @Header('Cache-Control', 'no-store')
-  health() {
-    return this.appliance.health();
+  async health() {
+    const health = await this.appliance.health();
+    if (!health.ready && health.reasonCode === 'mastra_pg_schema') {
+      throw new ServiceUnavailableException(health);
+    }
+    return health;
   }
 }
 
@@ -61,9 +73,7 @@ export class HappyMApplianceController {
 @ApiTags('Social Manager Providers')
 @Controller('/appliance/providers')
 export class HappyMProviderConfigurationController {
-  constructor(
-    private readonly providers: HappyMProviderConfigurationService
-  ) {}
+  constructor(private readonly providers: HappyMProviderConfigurationService) {}
 
   @Get('/')
   getProvidersStatus() {

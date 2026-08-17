@@ -4,6 +4,7 @@ import { RequestContext } from '@mastra/core/di';
 import { Organization } from '@prisma/client';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
 import type { ChannelsContext } from '@gitroom/backend/api/routes/copilot.controller';
+import { mastraStoreReadiness } from '@gitroom/nestjs-libraries/chat/mastra.readiness';
 
 @Injectable()
 export class PublicChatService {
@@ -31,6 +32,8 @@ export class PublicChatService {
         HttpStatus.BAD_REQUEST
       );
     }
+
+    this.assertStorageReady();
 
     const agent = (await this._mastraService.mastra()).getAgent('postiz');
     const memory = await agent.getMemory();
@@ -80,6 +83,7 @@ export class PublicChatService {
 
   async getThread(organizationId: string, threadId: string) {
     this.validateThreadId(threadId);
+    this.assertStorageReady();
     const agent = (await this._mastraService.mastra()).getAgent('postiz');
     const memory = await agent.getMemory();
     if (!memory) {
@@ -125,6 +129,19 @@ export class PublicChatService {
           message: 'AI chat thread id is invalid.',
         },
         HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  private assertStorageReady() {
+    const storage = mastraStoreReadiness.snapshot;
+    if (storage.reasonCode === 'mastra_pg_schema') {
+      throw new HttpException(
+        {
+          code: 'mastra_pg_schema',
+          message: 'Social Manager AI storage is unavailable.',
+        },
+        HttpStatus.SERVICE_UNAVAILABLE
       );
     }
   }

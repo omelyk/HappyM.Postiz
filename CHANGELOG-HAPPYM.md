@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-alpha.26 - 2026-08-17
+
+- Added a serialized Mastra PostgreSQL preflight that detects an exhausted `mastra_ai_spans` observability table and recreates only that disposable trace table before normal initialization.
+- Made warm starts idempotent and verified repeated initialization without accumulating retired PostgreSQL column slots.
+- Kept Social Manager available when a blocked schema repair cannot complete, exposing the structured `mastra_pg_schema` readiness reason and returning HTTP 503 for dependent AI operations without logging provider details.
+- Private Vue remains `1.0.0-alpha.16`, NuGet remains `1.0.0-alpha.18` and Postiz.NET remains `1.0.0-alpha.11`.
+
 ## 1.0.0-alpha.25 - 2026-08-13
 
 - Added organization-scoped Public API routes to list and soft-delete media while preserving the existing upload contracts.

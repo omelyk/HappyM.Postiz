@@ -13,6 +13,12 @@
 </a>
 </p>
 
+> **HappyM controlled fork:** this repository tracks Postiz `v2.23.0` and adds
+> the scoped iframe composer used by HappyM.Pharma. See
+> [`docs/happym-architecture.md`](docs/happym-architecture.md) for boundaries,
+> security decisions and upstream maintenance. The upstream Postiz product and
+> documentation continue below.
+
 <h3 align="center"><strong><a href="https://github.com/gitroomhq/postiz-agent">NEW: check out Postiz agent CLI! perfect for OpenClaw and other agents</a></strong></h3>
 <div align="center">
   <strong>

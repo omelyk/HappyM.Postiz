@@ -8,7 +8,15 @@ import dayjs from 'dayjs';
 import { useParams } from 'next/navigation';
 import { AddEditModal } from '@gitroom/frontend/components/new-launch/add.edit.modal';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
-export const StandaloneModal: FC = () => {
+export const StandaloneModal: FC<{
+  onClose?: () => void;
+  onSaved?: (
+    posts: Array<{ postId: string; integration: string }>,
+    type: 'draft' | 'schedule' | 'now' | 'update',
+    integrations: any[]
+  ) => void;
+  hostChrome?: boolean;
+}> = ({ onClose, onSaved, hostChrome = false }) => {
   const fetch = useFetch();
   const params = useParams<{ platform: string }>();
 
@@ -46,6 +54,10 @@ export const StandaloneModal: FC = () => {
     <AddEditModal
       dummy={params.platform === 'all'}
       customClose={() => {
+        if (onClose) {
+          onClose();
+          return;
+        }
         window.parent.postMessage(
           {
             action: 'closeIframe',
@@ -54,10 +66,12 @@ export const StandaloneModal: FC = () => {
         );
       }}
       mutate={() => {}}
+      onSaved={(posts, type) => onSaved?.(posts, type, integrations)}
       integrations={integrations}
       reopenModal={() => {}}
       allIntegrations={integrations}
       date={dayjs.utc(data).local()}
+      hostChrome={hostChrome}
     />
   );
 };

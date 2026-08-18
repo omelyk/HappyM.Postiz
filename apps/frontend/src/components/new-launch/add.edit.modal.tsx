@@ -23,6 +23,11 @@ export interface AddEditModalProps {
   mutate: () => void;
   padding?: string;
   customClose?: () => void;
+  hostChrome?: boolean;
+  onSaved?: (
+    posts: Array<{ postId: string; integration: string }>,
+    type: 'draft' | 'schedule' | 'now' | 'update'
+  ) => void;
   onlyValues?: Array<{
     content: string;
     id?: string;
@@ -217,9 +222,7 @@ export const AddEditModalInnerInner: FC<AddEditModalProps> = (props) => {
 
   return (
     <>
-      <style>
-        {`#support-discord {display: none !important;}`}
-      </style>
+      <style>{`#support-discord {display: none !important;}`}</style>
       <ManageModal {...props} />
     </>
   );

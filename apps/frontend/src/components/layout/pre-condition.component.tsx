@@ -6,10 +6,13 @@ import { Button } from '@gitroom/react/form/button';
 
 export const PreConditionComponentModal: FC = () => {
   const modal = useModals();
+  const productName = process.env.NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE === 'true'
+    ? 'Social Manager'
+    : 'Postiz';
   return (
     <div className="flex flex-col gap-[16px]">
       <div className="whitespace-pre-line">
-        This social channel was connected previously to another Postiz account.
+        This social channel was connected previously to another {productName} account.
         {'\n'}
         To continue, please fast-track your trial for an immediate charge.{'\n'}
         {'\n'}

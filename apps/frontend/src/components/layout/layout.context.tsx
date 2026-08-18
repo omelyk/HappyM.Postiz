@@ -5,6 +5,10 @@ import { FetchWrapperComponent } from '@gitroom/helpers/utils/custom.fetch';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useReturnUrl } from '@gitroom/frontend/app/(app)/auth/return.url.component';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
+import {
+  HAPPYM_CONNECT_FLOW_MARKER,
+  isHappyMConnectPath,
+} from '@gitroom/frontend/components/happym-embed/happym.connect.policy';
 export default function LayoutContext(params: { children: ReactNode }) {
   if (params?.children) {
     // eslint-disable-next-line react/no-children-prop
@@ -29,7 +33,9 @@ function LayoutContextInner(params: { children: ReactNode }) {
       if (
         typeof window !== 'undefined' &&
         (window.location.href.includes('/p/') ||
-          window.location.pathname.startsWith('/provider/'))
+          window.location.pathname.startsWith('/provider/') ||
+          isHappyMConnectPath(window.location.pathname) ||
+          window.sessionStorage.getItem(HAPPYM_CONNECT_FLOW_MARKER) === 'true')
       ) {
         return true;
       }
@@ -93,8 +99,7 @@ function LayoutContextInner(params: { children: ReactNode }) {
           await deleteDialog(
             'You are currently on trial, in order to use the feature you must finish the trial',
             'Finish the trial, charge me now',
-            'Trial',
-
+            'Trial'
           )
         ) {
           window.open('/billing?finishTrial=true', '_blank');

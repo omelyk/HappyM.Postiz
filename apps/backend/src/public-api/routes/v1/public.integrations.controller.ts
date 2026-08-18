@@ -4,6 +4,8 @@ import {
   Delete,
   Get,
   HttpException,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Put,
@@ -63,6 +65,11 @@ import { RefreshToken } from '@gitroom/nestjs-libraries/integrations/social.abst
 import { PostValidationException } from '@gitroom/backend/api/routes/posts.validation.exception';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import { WebhooksService } from '@gitroom/nestjs-libraries/database/prisma/webhooks/webhooks.service';
+import {
+  UpdateDto,
+  WebhooksDto,
+} from '@gitroom/nestjs-libraries/dtos/webhooks/webhooks.dto';
 
 @ApiTags('Public API')
 @Controller('/public/v1')
@@ -75,8 +82,48 @@ export class PublicIntegrationsController {
     private _mediaService: MediaService,
     private _notificationService: NotificationService,
     private _integrationManager: IntegrationManager,
-    private _refreshIntegrationService: RefreshIntegrationService
+    private _refreshIntegrationService: RefreshIntegrationService,
+    private _webhooksService: WebhooksService
   ) {}
+
+  @Get('/version')
+  getVersion() {
+    Sentry.metrics.count('public_api-request', 1);
+    return {
+      product: 'HappyM.Postiz',
+      apiVersion: '1',
+      upstreamVersion: process.env.POSTIZ_UPSTREAM_VERSION || '2.23.0',
+      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-alpha.8',
+      capabilities: [
+        'analytics',
+        'chat',
+        'integration-settings',
+        'media',
+        'notifications',
+        'posts',
+        'providers',
+        'signed-webhooks',
+        'video',
+      ],
+    };
+  }
+
+  @Get('/providers')
+  getProviders() {
+    Sentry.metrics.count('public_api-request', 1);
+    return {
+      social: socialIntegrationList.map((provider) => ({
+        name: provider.name,
+        identifier: provider.identifier,
+        toolTip: provider.toolTip,
+        editor: provider.editor,
+        isExternal: !!provider.externalUrl,
+        isWeb3: !!provider.isWeb3,
+        isChromeExtension: !!provider.isChromeExtension,
+      })),
+      article: [],
+    };
+  }
 
   @Post('/upload')
   @UseInterceptors(FileInterceptor('file'))
@@ -160,6 +207,32 @@ export class PublicIntegrationsController {
       getFile.originalname,
       getFile.path
     );
+  }
+
+  @Get('/media')
+  async getMedia(
+    @GetOrgFromRequest() org: Organization,
+    @Query('page') page = 1,
+    @Query('search') search?: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._mediaService.getMedia(org.id, page, search);
+  }
+
+  @Delete('/media/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteMedia(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    const result = await this._mediaService.deleteMediaIfExists(org.id, id);
+    if (result.count === 0) {
+      throw new HttpException(
+        { code: 'media_not_found', message: 'Media was not found.' },
+        HttpStatus.NOT_FOUND
+      );
+    }
   }
 
   @Get('/find-slot/:id')
@@ -419,6 +492,43 @@ export class PublicIntegrationsController {
     return this._integrationService.deleteChannel(org.id, id);
   }
 
+  @Put('/integrations/:id/settings')
+  async updateIntegrationSettings(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body('additionalSettings') additionalSettings: unknown
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    const integration = await this._integrationService.getIntegrationById(
+      org.id,
+      id
+    );
+    if (!integration) {
+      throw new HttpException({ msg: 'Integration not found' }, 404);
+    }
+
+    let serialized: string;
+    try {
+      serialized =
+        typeof additionalSettings === 'string'
+          ? JSON.stringify(JSON.parse(additionalSettings))
+          : JSON.stringify(additionalSettings);
+    } catch {
+      throw new HttpException({ msg: 'Invalid integration settings' }, 400);
+    }
+
+    if (!serialized || serialized.length > 64_000) {
+      throw new HttpException({ msg: 'Invalid integration settings' }, 400);
+    }
+
+    await this._integrationService.updateProviderSettings(
+      org.id,
+      id,
+      serialized
+    );
+    return { updated: true };
+  }
+
   @Get('/integration-settings/:id')
   async getIntegrationSettings(
     @GetOrgFromRequest() org: Organization,
@@ -508,6 +618,53 @@ export class PublicIntegrationsController {
   ) {
     Sentry.metrics.count('public_api-request', 1);
     return this._postsService.updateReleaseId(org.id, id, releaseId);
+  }
+
+  @Get('/posts/by-release-id/:releaseId')
+  async getPostByReleaseId(
+    @GetOrgFromRequest() org: Organization,
+    @Param('releaseId') releaseId: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    const post = await this._postsService.getPostByReleaseId(org.id, releaseId);
+    if (!post) {
+      throw new HttpException({ msg: 'Post not found' }, 404);
+    }
+    return post;
+  }
+
+  @Get('/webhooks')
+  getWebhooks(@GetOrgFromRequest() org: Organization) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._webhooksService.getWebhooks(org.id);
+  }
+
+  @Post('/webhooks')
+  @CheckPolicies([AuthorizationActions.Create, Sections.WEBHOOKS])
+  createWebhook(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: WebhooksDto
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._webhooksService.createWebhook(org.id, body);
+  }
+
+  @Put('/webhooks')
+  updateWebhook(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: UpdateDto
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._webhooksService.createWebhook(org.id, body);
+  }
+
+  @Delete('/webhooks/:id')
+  deleteWebhook(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._webhooksService.deleteWebhook(org.id, id);
   }
 
   @Get('/analytics/:integration')

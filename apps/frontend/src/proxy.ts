@@ -8,11 +8,14 @@ import {
   headerName,
   languages,
 } from '@gitroom/react/translation/i18n.config';
+import { isHappyMConnectPath } from '@gitroom/frontend/components/happym-embed/happym.connect.policy';
+import { happyMApplianceHomePath } from '@gitroom/frontend/components/happym-appliance/happym.appliance.navigation';
 acceptLanguage.languages(languages);
 
 // This function can be marked `async` if using `await` inside
 export async function proxy(request: NextRequest) {
   const nextUrl = request.nextUrl;
+  const applianceMode = process.env.HAPPYM_APPLIANCE_MODE === 'true';
   const authCookie =
     request.cookies.get('auth') ||
     request.headers.get('auth') ||
@@ -37,6 +40,35 @@ export async function proxy(request: NextRequest) {
 
   if (lng) {
     topResponse.headers.set(cookieName, lng);
+  }
+
+  if (
+    nextUrl.pathname === '/embed/happym/composer' ||
+    isHappyMConnectPath(nextUrl.pathname)
+  ) {
+    const ticket = nextUrl.searchParams.get('ticket');
+    if (
+      nextUrl.pathname === '/embed/happym/composer' &&
+      !authCookie &&
+      !ticket
+    ) {
+      return NextResponse.redirect(
+        new URL('/auth/login-required', nextUrl.href)
+      );
+    }
+
+    const allowedOrigins = (process.env.HAPPYM_EMBED_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+      .join(' ');
+    topResponse.headers.set(
+      'Content-Security-Policy',
+      `frame-ancestors 'self'${allowedOrigins ? ` ${allowedOrigins}` : ''}`
+    );
+    topResponse.headers.set('Referrer-Policy', 'no-referrer');
+    topResponse.headers.set('Cache-Control', 'no-store');
+    return topResponse;
   }
 
   if (nextUrl.pathname.startsWith('/modal/') && !authCookie) {
@@ -81,8 +113,12 @@ export async function proxy(request: NextRequest) {
 
   if (
     nextUrl.pathname.startsWith('/auth/register') &&
-    process.env.DISABLE_REGISTRATION === 'true'
+    (applianceMode || process.env.DISABLE_REGISTRATION === 'true')
   ) {
+    return NextResponse.redirect(new URL('/auth/login', nextUrl.href));
+  }
+
+  if (applianceMode && nextUrl.pathname === '/auth' && !authCookie) {
     return NextResponse.redirect(new URL('/auth/login', nextUrl.href));
   }
 
@@ -160,7 +196,7 @@ export async function proxy(request: NextRequest) {
     if (nextUrl.pathname === '/') {
       return NextResponse.redirect(
         new URL(
-          !!process.env.IS_GENERAL ? '/launches' : `/analytics`,
+          happyMApplianceHomePath(applianceMode, !!process.env.IS_GENERAL),
           nextUrl.href
         )
       );

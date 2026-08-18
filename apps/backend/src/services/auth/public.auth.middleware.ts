@@ -39,12 +39,39 @@ export class PublicAuthMiddleware implements NestMiddleware {
         // @ts-ignore
         req.org = { ...org, users: [{ users: { role: 'SUPERADMIN' } }] };
       } else {
-        const org = await this._organizationService.getOrgByApiKey(auth);
-        if (!org) {
-          res
-            .status(HttpStatus.UNAUTHORIZED)
-            .json({ msg: 'Invalid API key' });
+        const credentialOrg = await this._organizationService.getOrgByApiKey(
+          auth
+        );
+        if (!credentialOrg) {
+          res.status(HttpStatus.UNAUTHORIZED).json({ msg: 'Invalid API key' });
           return;
+        }
+
+        const requestedOrgId = req.header('X-HappyM-Organization-Id');
+        let org = credentialOrg;
+        if (requestedOrgId) {
+          const systemOrgId =
+            process.env.HAPPYM_APPLIANCE_SYSTEM_ORGANIZATION_ID ||
+            'happym-system';
+          if (
+            process.env.HAPPYM_APPLIANCE_MODE !== 'true' ||
+            credentialOrg.id !== systemOrgId
+          ) {
+            res
+              .status(HttpStatus.FORBIDDEN)
+              .json({ msg: 'Organization scope is not allowed' });
+            return;
+          }
+          const scopedOrg = await this._organizationService.getOrgById(
+            requestedOrgId
+          );
+          if (!scopedOrg) {
+            res
+              .status(HttpStatus.NOT_FOUND)
+              .json({ msg: 'Organization scope was not found' });
+            return;
+          }
+          org = { ...credentialOrg, ...scopedOrg };
         }
 
         if (!!process.env.STRIPE_SECRET_KEY && !org.subscription) {

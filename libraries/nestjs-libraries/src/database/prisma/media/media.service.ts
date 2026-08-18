@@ -29,6 +29,10 @@ export class MediaService {
     return this._mediaRepository.deleteMedia(org, id);
   }
 
+  async deleteMediaIfExists(org: string, id: string) {
+    return this._mediaRepository.deleteMediaIfExists(org, id);
+  }
+
   getMediaById(id: string) {
     return this._mediaRepository.getMediaById(id);
   }
@@ -57,8 +61,18 @@ export class MediaService {
     }
   }
 
-  saveFile(org: string, fileName: string, filePath: string, originalName?: string) {
-    return this._mediaRepository.saveFile(org, fileName, filePath, originalName);
+  saveFile(
+    org: string,
+    fileName: string,
+    filePath: string,
+    originalName?: string
+  ) {
+    return this._mediaRepository.saveFile(
+      org,
+      fileName,
+      filePath,
+      originalName
+    );
   }
 
   getMedia(org: string, page: number, search?: string) {

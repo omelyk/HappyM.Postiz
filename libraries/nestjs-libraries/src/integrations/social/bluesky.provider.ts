@@ -19,6 +19,7 @@ import {
   AppBskyVideoDefs,
   AtpAgent,
   BlobRef,
+  AppBskyFeedPost,
 } from '@atproto/api';
 import dayjs from 'dayjs';
 import { Integration } from '@prisma/client';
@@ -771,14 +772,21 @@ export class BlueskyProvider extends SocialAbstract implements SocialProvider {
       depth: 0,
     });
 
-    // @ts-ignore
-    const parentCid = parentThread.data.thread.post?.cid;
-    // @ts-ignore
-    const rootUri =
-      parentThread.data.thread.post?.record?.reply?.root?.uri || postId;
-    // @ts-ignore
-    const rootCid =
-      parentThread.data.thread.post?.record?.reply?.root?.cid || parentCid;
+    const parentPost =
+      'post' in parentThread.data.thread
+        ? parentThread.data.thread.post
+        : undefined;
+    const parentRecord =
+      parentPost && AppBskyFeedPost.isRecord(parentPost.record)
+        ? parentPost.record
+        : undefined;
+    const parentReply =
+      parentRecord && AppBskyFeedPost.isReplyRef(parentRecord.reply)
+        ? (parentRecord.reply as AppBskyFeedPost.ReplyRef)
+        : undefined;
+    const parentCid = parentPost?.cid;
+    const rootUri = parentReply?.root.uri || postId;
+    const rootCid = parentReply?.root.cid || parentCid;
 
     // @ts-ignore
     const { cid, uri, commit } = await agent.post({

@@ -1,4 +1,12 @@
 {
+  "instagram_business_not_linked_title": "Instagram Business not linked to the selected Facebook Page",
+  "instagram_business_not_linked_body": "Social Manager publishes Instagram through Meta: the Instagram account must be Professional (Business/Creator) and linked to the Facebook Page you selected. A personal Instagram or a Page without a linked IG Business cannot complete this step.",
+  "instagram_business_not_linked_step_1": "1. In Meta Business Suite, open the pharmacy Facebook Page and confirm you are an admin.",
+  "instagram_business_not_linked_step_2": "2. Link a Professional Instagram account to that Page (Page / Instagram settings).",
+  "instagram_business_not_linked_step_3": "3. Start Connect again and select that same Page (and Business, if asked).",
+  "instagram_business_not_linked_step_4": "4. If an incomplete integration remains in Social Manager, delete it and Connect again.",
+  "instagram_business_not_linked_step_5": "5. Return to the CRM (Pharmacies → Socials) and use Resync if the list did not refresh.",
+  "instagram_business_not_linked_footnote": "This is a Meta Page↔Instagram link issue, not a CRM login problem.",
   "calendar": "Calendar",
   "webhooks": "Webhooks",
   "webhooks_are_a_way_to_get_notified_when_something_happens_in_postiz_via_an_http_request": "Webhooks are a way to get notified when something happens in Postiz via\n an HTTP request.",
@@ -739,5 +747,14 @@
   "republish_the_post": "Republish the post",
   "post_already_published_republish_warning": "This post was already published. Republishing will publish it again to",
   "republish_at": "at",
-  "republish_recurring_note": "This is a recurring post: your changes apply to all future recurrences starting now."
+  "republish_recurring_note": "This is a recurring post: your changes apply to all future recurrences starting now.",
+  "happym_system_workspace_title": "System workspace",
+  "happym_system_workspace_description": "No channels are shown in the System workspace. Select a pharmacy workspace to view and manage only its integrations.",
+  "happym_select_pharmacy_workspace": "Select pharmacy workspace",
+  "happym_workspace_selector_label": "Pharmacy workspace",
+  "happym_system_workspace_short": "System workspace",
+  "happym_pharmacy_workspace_short": "Pharmacy",
+  "happym_workspace_glossary_heading": "Workspace / Pharmacy",
+  "happym_system_workspace_option": "System · engine administration",
+  "happym_workspace_not_found": "Workspace not found — use Ensure workspace from the CRM."
 }

@@ -150,6 +150,10 @@ export class PostsService {
     return this._postRepository.updateReleaseId(postId, orgId, releaseId);
   }
 
+  getPostByReleaseId(orgId: string, releaseId: string) {
+    return this._postRepository.getPostByReleaseId(orgId, releaseId);
+  }
+
   async checkPostAnalytics(
     orgId: string,
     postId: string,

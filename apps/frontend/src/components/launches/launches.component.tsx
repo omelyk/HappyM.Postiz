@@ -26,6 +26,7 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useIntegrationList } from '@gitroom/frontend/components/launches/helpers/use.integration.list';
 import useCookie from 'react-use-cookie';
 import { Onboarding } from '@gitroom/frontend/components/onboarding/onboarding';
+import { shouldCloseLaunchesPopup } from '@gitroom/frontend/components/happym-appliance/happym.appliance.navigation';
 
 export const SVGLine = () => {
   return (
@@ -480,7 +481,13 @@ export const LaunchesComponent = () => {
         '*'
       );
     }
-    if (window.opener) {
+    if (
+      shouldCloseLaunchesPopup(
+        !!window.opener,
+        search.get('msg'),
+        search.get('added')
+      )
+    ) {
       window.close();
     }
   }, []);

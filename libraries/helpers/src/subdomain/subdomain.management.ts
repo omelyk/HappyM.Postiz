@@ -2,5 +2,13 @@ import { parse } from 'tldts';
 
 export function getCookieUrlFromDomain(domain: string) {
   const url = parse(domain);
-  return url.domain! ? '.' + url.domain! : url.hostname!;
+  if (
+    !url.hostname ||
+    url.isIp ||
+    !url.domain ||
+    (!url.isIcann && !url.isPrivate)
+  ) {
+    return undefined;
+  }
+  return '.' + url.domain;
 }

@@ -35,6 +35,7 @@ export interface ContinueProviderConfig<TItem, TSelection> {
   titleKey: string;
   titleDefault: string;
   emptyStateMessages: EmptyStateMessage[];
+  compactEmptyState?: boolean;
   getSelectionValue: (item: TItem) => TSelection;
   transformSaveData: (selection: TSelection) => any;
   renderItem: (item: TItem, isSelected: boolean) => ReactNode;
@@ -51,6 +52,7 @@ export function withContinueProvider<TItem, TSelection>(
     titleKey,
     titleDefault,
     emptyStateMessages,
+    compactEmptyState,
     getSelectionValue,
     transformSaveData,
     renderItem,
@@ -107,11 +109,17 @@ export function withContinueProvider<TItem, TSelection>(
 
     if (!isLoading && !resolvedData?.length) {
       return (
-        <div className="text-center flex flex-col justify-center items-center text-[18px] leading-[26px] h-[300px]">
+        <div className={clsx(
+          'flex flex-col justify-center items-center text-[18px] leading-[26px] min-h-[300px]',
+          compactEmptyState ? 'gap-[10px] p-[20px] text-left items-stretch' : 'text-center'
+        )}>
           {emptyStateMessages.map((msg, index) => (
-            <span key={msg.key}>
+            <span key={msg.key} className={clsx(
+              compactEmptyState && index === 0 && 'text-[20px] font-semibold',
+              compactEmptyState && index === emptyStateMessages.length - 1 && 'mt-[6px] italic text-textItemBlur'
+            )}>
               {t(msg.key, msg.text)}
-              {index < emptyStateMessages.length - 1 && (
+              {!compactEmptyState && index < emptyStateMessages.length - 1 && (
                 <>
                   <br />
                   <br />

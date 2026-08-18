@@ -55,7 +55,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const [showSettings, setShowSettings] = useState(false);
   const { data: shortlinkPreferenceData } = useShortlinkPreference();
 
-  const { addEditSets, mutate, customClose, dummy } = props;
+  const { addEditSets, mutate, customClose, dummy, hostChrome = false } = props;
 
   const {
     selectedIntegrations,
@@ -437,12 +437,18 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       }
 
       if (!dummy) {
-        addEditSets
-          ? addEditSets(data)
-          : await fetch('/posts', {
-              method: 'POST',
-              body: JSON.stringify(data),
-            });
+        if (addEditSets) {
+          addEditSets(data);
+        } else {
+          const response = await fetch('/posts', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          });
+          if (props.onSaved) {
+            const createdPosts = await response.json();
+            props.onSaved(createdPosts, type);
+          }
+        }
 
         if (!addEditSets) {
           mutate();
@@ -467,17 +473,29 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   );
 
   return (
-    <div className="w-full h-full flex-1 p-[40px] flex relative">
-      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col">
+    <div
+      className={clsx(
+        'w-full h-full min-w-0 flex-1 flex relative overflow-hidden',
+        hostChrome ? 'p-0' : 'p-[40px]'
+      )}
+    >
+      <div
+        className={clsx(
+          'flex min-w-0 flex-1 bg-newBgColorInner flex-col overflow-hidden',
+          hostChrome ? 'rounded-none' : 'rounded-[20px]'
+        )}
+      >
         <div className="flex-1 flex">
           <div className="flex flex-col flex-1 border-e border-newBorder">
-            <div className="bg-newBgColor h-[65px] rounded-s-[20px] !rounded-b-[0] flex items-center gap-[12px] px-[20px] text-[20px] font-[600]">
-              {t('create_post_title', 'Create Post')}
-              <CreationMethodBadge
-                creationMethod={existingData?.posts?.[0]?.creationMethod}
-                size="sm"
-              />
-            </div>
+            {!hostChrome && (
+              <div className="bg-newBgColor h-[65px] rounded-s-[20px] !rounded-b-[0] flex items-center gap-[12px] px-[20px] text-[20px] font-[600]">
+                {t('create_post_title', 'Create Post')}
+                <CreationMethodBadge
+                  creationMethod={existingData?.posts?.[0]?.creationMethod}
+                  size="sm"
+                />
+              </div>
+            )}
             <div className="flex-1 flex flex-col gap-[16px]">
               <div
                 className={clsx('flex-1 relative', showSettings && 'hidden')}
@@ -560,13 +578,22 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               </div>
             </div>
           </div>
-          <div className="w-[580px] flex flex-col">
-            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600]">
-              <div className="flex-1">{t('post_preview', 'Post Preview')}</div>
-              <div className="cursor-pointer">
-                <CloseIcon onClick={askClose} className="text-[#A3A3A3]" />
+          <div
+            className={clsx(
+              'flex min-w-[360px] flex-col',
+              hostChrome ? 'w-[48%]' : 'w-[580px]'
+            )}
+          >
+            {!hostChrome && (
+              <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600]">
+                <div className="flex-1">
+                  {t('post_preview', 'Post Preview')}
+                </div>
+                <div className="cursor-pointer">
+                  <CloseIcon onClick={askClose} className="text-[#A3A3A3]" />
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex-1 relative">
               <Scrollable
                 scrollClasses="!pe-[20px]"

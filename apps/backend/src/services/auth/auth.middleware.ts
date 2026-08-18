@@ -8,6 +8,13 @@ import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.man
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
 import { setSentryUserContext } from '@gitroom/nestjs-libraries/sentry/initialize.sentry';
+import {
+  happyMEmbedSessionRequired,
+  isHappyMEmbedUserRequestUrl,
+} from '@gitroom/backend/services/happym-embed/happym.embed.errors';
+
+const isHappyMEmbedUserRequest = (req: Request) =>
+  isHappyMEmbedUserRequestUrl(req.originalUrl || req.path || '');
 
 export const removeAuth = (res: Response) => {
   res.cookie('auth', '', {
@@ -34,6 +41,9 @@ export class AuthMiddleware implements NestMiddleware {
   async use(req: Request, res: Response, next: NextFunction) {
     const auth = req.headers.auth || req.cookies.auth;
     if (!auth) {
+      if (isHappyMEmbedUserRequest(req)) {
+        throw happyMEmbedSessionRequired();
+      }
       throw new HttpForbiddenException();
     }
     try {
@@ -47,7 +57,9 @@ export class AuthMiddleware implements NestMiddleware {
         throw new HttpForbiddenException();
       }
 
-      let user = (await this._userService.getUserById(payload.id)) as User | null;
+      let user = (await this._userService.getUserById(
+        payload.id
+      )) as User | null;
 
       if (!user) {
         throw new HttpForbiddenException();
@@ -122,6 +134,9 @@ export class AuthMiddleware implements NestMiddleware {
         paymentId: setOrg.paymentId,
       });
     } catch (err) {
+      if (isHappyMEmbedUserRequest(req)) {
+        throw happyMEmbedSessionRequired();
+      }
       throw new HttpForbiddenException();
     }
     next();

@@ -32,6 +32,10 @@ import {
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 import { uniqBy } from 'lodash';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
+import { GetHappyMEmbedContext } from '@gitroom/backend/services/happym-embed/happym.embed.context';
+import { HappyMEmbedSessionClaims } from '@gitroom/backend/services/happym-embed/happym.embed.types';
+import { assertHappyMEmbedIntegration } from '@gitroom/backend/services/happym-embed/happym.embed.authorization';
+import { isHappyMConnectProviderConfigured } from '@gitroom/backend/services/happym-embed/happym.connect.provider-configuration';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -86,39 +90,51 @@ export class IntegrationsController {
   }
 
   @Get('/list')
-  async getIntegrationList(@GetOrgFromRequest() org: Organization) {
+  async getIntegrationList(
+    @GetOrgFromRequest() org: Organization,
+    @GetHappyMEmbedContext() embedContext?: HappyMEmbedSessionClaims
+  ) {
+    const allowedIntegrationIds = embedContext
+      ? new Set(embedContext.allowedIntegrationIds)
+      : undefined;
     return {
       integrations: await Promise.all(
         (
           await this._integrationService.getIntegrationsList(org.id)
-        ).map(async (p) => {
-          const findIntegration = this._integrationManager.getSocialIntegration(
-            p.providerIdentifier
-          );
-          return {
-            name: p.name,
-            id: p.id,
-            internalId: p.internalId,
-            disabled: p.disabled,
-            editor: findIntegration.editor,
-            stripLinks: !!findIntegration?.stripLinks?.(),
-            picture: p.picture || '/no-picture.jpg',
-            identifier: p.providerIdentifier,
-            inBetweenSteps: p.inBetweenSteps,
-            refreshNeeded: p.refreshNeeded,
-            isCustomFields: !!findIntegration.customFields,
-            ...(findIntegration.customFields
-              ? { customFields: await findIntegration.customFields() }
-              : {}),
-            display: p.profile,
-            type: p.type,
-            time: JSON.parse(p.postingTimes),
-            changeProfilePicture: !!findIntegration?.changeProfilePicture,
-            changeNickName: !!findIntegration?.changeNickname,
-            customer: p.customer,
-            additionalSettings: p.additionalSettings || '[]',
-          };
-        })
+        )
+          .filter(
+            (item) =>
+              !allowedIntegrationIds || allowedIntegrationIds.has(item.id)
+          )
+          .map(async (p) => {
+            const findIntegration =
+              this._integrationManager.getSocialIntegration(
+                p.providerIdentifier
+              );
+            return {
+              name: p.name,
+              id: p.id,
+              internalId: p.internalId,
+              disabled: p.disabled,
+              editor: findIntegration.editor,
+              stripLinks: !!findIntegration?.stripLinks?.(),
+              picture: p.picture || '/no-picture.jpg',
+              identifier: p.providerIdentifier,
+              inBetweenSteps: p.inBetweenSteps,
+              refreshNeeded: p.refreshNeeded,
+              isCustomFields: !!findIntegration.customFields,
+              ...(findIntegration.customFields
+                ? { customFields: await findIntegration.customFields() }
+                : {}),
+              display: p.profile,
+              type: p.type,
+              time: JSON.parse(p.postingTimes),
+              changeProfilePicture: !!findIntegration?.changeProfilePicture,
+              changeNickName: !!findIntegration?.changeNickname,
+              customer: p.customer,
+              additionalSettings: p.additionalSettings || '[]',
+            };
+          })
       ),
     };
   }
@@ -198,7 +214,8 @@ export class IntegrationsController {
     @Query('externalUrl') externalUrl: string,
     @Query('redirectUrl') redirectUrl: string,
     @Query('onboarding') onboarding: string,
-    @GetOrgFromRequest() org: Organization
+    @GetOrgFromRequest() org: Organization,
+    @GetHappyMEmbedContext() embedContext?: HappyMEmbedSessionClaims
   ) {
     if (
       !this._integrationManager
@@ -210,6 +227,13 @@ export class IntegrationsController {
 
     const integrationProvider =
       this._integrationManager.getSocialIntegration(integration);
+
+    if (
+      embedContext?.purpose === 'connect' &&
+      !isHappyMConnectProviderConfigured(integration)
+    ) {
+      return { err: true, errorCode: 'provider_not_configured' as const };
+    }
 
     if (integrationProvider.externalUrl && !externalUrl) {
       throw new Error('Missing external url');
@@ -249,7 +273,12 @@ export class IntegrationsController {
 
       return { url };
     } catch (err) {
-      return { err: true };
+      return {
+        err: true,
+        ...(embedContext?.purpose === 'connect'
+          ? { errorCode: 'provider_unavailable' as const }
+          : {}),
+      };
     }
   }
 
@@ -265,8 +294,10 @@ export class IntegrationsController {
   @Post('/mentions')
   async mentions(
     @GetOrgFromRequest() org: Organization,
-    @Body() body: IntegrationFunctionDto
+    @Body() body: IntegrationFunctionDto,
+    @GetHappyMEmbedContext() embedContext?: HappyMEmbedSessionClaims
   ) {
+    assertHappyMEmbedIntegration(body.id, embedContext);
     const getIntegration = await this._integrationService.getIntegrationById(
       org.id,
       body.id
@@ -277,7 +308,7 @@ export class IntegrationsController {
 
     let newList: any[] | { none: true } = [];
     try {
-      newList = (await this.functionIntegration(org, body)) || [];
+      newList = (await this.functionIntegration(org, body, embedContext)) || [];
     } catch (err) {
       console.log(err);
     }
@@ -321,8 +352,10 @@ export class IntegrationsController {
   @Post('/function')
   async functionIntegration(
     @GetOrgFromRequest() org: Organization,
-    @Body() body: IntegrationFunctionDto
+    @Body() body: IntegrationFunctionDto,
+    @GetHappyMEmbedContext() embedContext?: HappyMEmbedSessionClaims
   ): Promise<any> {
+    assertHappyMEmbedIntegration(body.id, embedContext);
     const getIntegration = await this._integrationService.getIntegrationById(
       org.id,
       body.id
@@ -366,7 +399,7 @@ export class IntegrationsController {
             if (integrationProvider.refreshWait) {
               await timer(10000);
             }
-            return this.functionIntegration(org, body);
+            return this.functionIntegration(org, body, embedContext);
           }
 
           return false;

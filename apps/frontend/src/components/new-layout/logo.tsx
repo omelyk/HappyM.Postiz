@@ -1,6 +1,21 @@
 'use client';
 
 export const Logo = () => {
+  const applianceMode =
+    process.env.NEXT_PUBLIC_HAPPYM_APPLIANCE_MODE === 'true';
+
+  if (applianceMode) {
+    return (
+      <img
+        src="/brand/netforges-icon.png"
+        alt="Social Manager"
+        width={60}
+        height={60}
+        className="mt-[8px] min-h-[60px] min-w-[60px] object-contain p-[4px]"
+      />
+    );
+  }
+
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

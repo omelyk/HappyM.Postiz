@@ -37,10 +37,34 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const Plausible = !!process.env.STRIPE_PUBLISHABLE_KEY
     ? PlausibleProvider
     : Fragment;
+  const applianceMode = process.env.HAPPYM_APPLIANCE_MODE === 'true';
   return (
     <html>
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link
+          rel="icon"
+          href={
+            applianceMode
+              ? '/brand/social-manager-favicon-64.png'
+              : '/favicon.ico'
+          }
+          sizes="any"
+        />
+        {applianceMode && (
+          <>
+            <link
+              rel="icon"
+              type="image/png"
+              sizes="32x32"
+              href="/brand/social-manager-favicon-32.png"
+            />
+            <link
+              rel="apple-touch-icon"
+              sizes="180x180"
+              href="/brand/social-manager-apple-touch-180.png"
+            />
+          </>
+        )}
         {!!process.env.DATAFAST_WEBSITE_ID && (
           <Script
             data-website-id={process.env.DATAFAST_WEBSITE_ID}

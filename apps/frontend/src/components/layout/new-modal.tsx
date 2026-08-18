@@ -132,6 +132,8 @@ export const Component: FC<{
   if (modal.removeLayout) {
     return (
       <div
+        id={modal.id}
+        data-happym-modal-backdrop
         style={{ zIndex }}
         className={clsx(
           !modal.fullScreen
@@ -150,6 +152,8 @@ export const Component: FC<{
             )}
           >
             <div
+              role="dialog"
+              aria-modal="true"
               className={clsx(
                 modal.fullScreen ? 'w-full h-full flex-1' : 'mx-auto py-[48px]'
               )}
@@ -168,6 +172,8 @@ export const Component: FC<{
   return (
     <CurrentModalContext.Provider value={{ id: modal.id }}>
       <div
+        id={modal.id}
+        data-happym-modal-backdrop
         onClick={closeModalFunction}
         style={{ zIndex }}
         className={clsx(
@@ -195,6 +201,8 @@ export const Component: FC<{
             )}
           >
             <div
+              role="dialog"
+              aria-modal="true"
               className={clsx(
                 !modal.removeLayout && 'gap-[40px] p-[32px]',
                 'bg-newBgColorInner mx-auto flex flex-col w-fit rounded-[24px] relative',
@@ -297,12 +305,28 @@ export const ModalManagerInner: FC = () => {
     </>
   );
 };
-export const ModalManager: FC<{ children: ReactNode }> = ({ children }) => {
+export const ModalManager: FC<{
+  children: ReactNode;
+  fillViewport?: boolean;
+}> = ({ children, fillViewport = false }) => {
   return (
-    <div>
+    <div
+      className={clsx(
+        fillViewport &&
+          'flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden'
+      )}
+    >
       <ModalManagerEmitter />
       <ModalManagerInner />
-      <div className="transition-all w-full">{children}</div>
+      <div
+        className={clsx(
+          'transition-all w-full',
+          fillViewport &&
+            'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden'
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 };

@@ -9,6 +9,9 @@ export class MastraService {
   static mastra: Mastra;
   constructor(private _loadToolsService: LoadToolsService) {}
   async mastra() {
+    // Initialize storage deterministically during engine bootstrap. The store
+    // deduplicates this call and fails soft only for the known PG schema limit.
+    await pStore.init();
     MastraService.mastra =
       MastraService.mastra ||
       new Mastra({

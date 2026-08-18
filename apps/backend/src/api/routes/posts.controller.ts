@@ -19,6 +19,9 @@ import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permis
 import { ApiTags } from '@nestjs/swagger';
 import { GeneratorDto } from '@gitroom/nestjs-libraries/dtos/generator/generator.dto';
 import { CreateGeneratedPostsDto } from '@gitroom/nestjs-libraries/dtos/generator/create.generated.posts.dto';
+import { GetHappyMEmbedContext } from '@gitroom/backend/services/happym-embed/happym.embed.context';
+import { HappyMEmbedSessionClaims } from '@gitroom/backend/services/happym-embed/happym.embed.types';
+import { assertHappyMEmbedPostIntegrations } from '@gitroom/backend/services/happym-embed/happym.embed.authorization';
 import { AgentGraphService } from '@gitroom/nestjs-libraries/agent/agent.graph.service';
 import { Response } from 'express';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
@@ -159,7 +162,10 @@ export class PostsController {
   }
 
   @Get('/group/:group')
-  getPostsByGroup(@GetOrgFromRequest() org: Organization, @Param('group') group: string) {
+  getPostsByGroup(
+    @GetOrgFromRequest() org: Organization,
+    @Param('group') group: string
+  ) {
     return this._postsService.getPostsByGroup(org.id, group);
   }
 
@@ -171,8 +177,10 @@ export class PostsController {
   @Post('/valid')
   async validatePosts(
     @GetOrgFromRequest() org: Organization,
+    @GetHappyMEmbedContext() embedContext: HappyMEmbedSessionClaims | undefined,
     @Body() rawBody: any
   ) {
+    assertHappyMEmbedPostIntegrations(rawBody?.posts || [], embedContext);
     return this._postsService.validatePosts(org.id, rawBody?.posts || []);
   }
 
@@ -180,8 +188,10 @@ export class PostsController {
   @CheckPolicies([AuthorizationActions.Create, Sections.POSTS_PER_MONTH])
   async createPost(
     @GetOrgFromRequest() org: Organization,
+    @GetHappyMEmbedContext() embedContext: HappyMEmbedSessionClaims | undefined,
     @Body() rawBody: any
   ) {
+    assertHappyMEmbedPostIntegrations(rawBody?.posts || [], embedContext);
     // Server-side validation — never trust the client to have validated.
     const validation = await this._postsService.validatePosts(
       org.id,

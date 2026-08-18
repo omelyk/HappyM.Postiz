@@ -402,6 +402,26 @@ export class PostsRepository {
     });
   }
 
+  getPostByReleaseId(orgId: string, releaseId: string) {
+    return this._post.model.post.findFirst({
+      where: {
+        organizationId: orgId,
+        releaseId,
+        deletedAt: null,
+      },
+      include: {
+        integration: {
+          select: {
+            id: true,
+            name: true,
+            providerIdentifier: true,
+            picture: true,
+          },
+        },
+      },
+    });
+  }
+
   updateReleaseId(id: string, orgId: string, releaseId: string) {
     return this._post.model.post.update({
       where: {

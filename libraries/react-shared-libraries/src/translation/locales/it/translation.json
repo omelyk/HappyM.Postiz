@@ -1,4 +1,12 @@
 {
+  "instagram_business_not_linked_title": "Instagram Business non è collegato alla Pagina Facebook selezionata",
+  "instagram_business_not_linked_body": "Social Manager pubblica su Instagram tramite Meta: l’account Instagram deve essere Professionale (Business/Creator) e collegato alla Pagina Facebook selezionata. Un account Instagram personale o una Pagina senza Instagram Business collegato non può completare questo passaggio.",
+  "instagram_business_not_linked_step_1": "1. In Meta Business Suite, apri la Pagina Facebook della farmacia e verifica di esserne amministratore.",
+  "instagram_business_not_linked_step_2": "2. Collega un account Instagram Professionale a quella Pagina (impostazioni Pagina / Instagram).",
+  "instagram_business_not_linked_step_3": "3. Avvia nuovamente Collega e seleziona la stessa Pagina (e il Business, se richiesto).",
+  "instagram_business_not_linked_step_4": "4. Se in Social Manager rimane un’integrazione incompleta, eliminala e ripeti Collega.",
+  "instagram_business_not_linked_step_5": "5. Torna nel CRM (Farmacie → Social) e usa Risincronizza se l’elenco non si è aggiornato.",
+  "instagram_business_not_linked_footnote": "È un problema di collegamento Meta Pagina↔Instagram, non un problema di accesso al CRM.",
   "calendar": "Calendario",
   "webhooks": "Webhook",
   "webhooks_are_a_way_to_get_notified_when_something_happens_in_postiz_via_an_http_request": "I webhook sono un modo per ricevere notifiche quando succede qualcosa in Postiz tramite una richiesta HTTP.",
@@ -737,5 +745,14 @@
   "republish_the_post": "Ripubblica il post",
   "post_already_published_republish_warning": "Questo post è già stato pubblicato. Ripubblicandolo verrà pubblicato nuovamente su",
   "republish_at": "a",
-  "republish_recurring_note": "Questo è un post ricorrente: le tue modifiche verranno applicate a tutte le future ricorrenze a partire da ora."
+  "republish_recurring_note": "Questo è un post ricorrente: le tue modifiche verranno applicate a tutte le future ricorrenze a partire da ora.",
+  "happym_system_workspace_title": "Workspace di sistema",
+  "happym_system_workspace_description": "Nessun canale è mostrato nel workspace di sistema. Seleziona il workspace della farmacia per vedere e gestire esclusivamente le sue integrazioni.",
+  "happym_select_pharmacy_workspace": "Seleziona workspace farmacia",
+  "happym_workspace_selector_label": "Workspace farmacia",
+  "happym_system_workspace_short": "Workspace sistema",
+  "happym_pharmacy_workspace_short": "Farmacia",
+  "happym_workspace_glossary_heading": "Workspace / Farmacia",
+  "happym_system_workspace_option": "Sistema · amministrazione motore",
+  "happym_workspace_not_found": "Workspace non trovato — usa Assicura workspace dal CRM."
 }

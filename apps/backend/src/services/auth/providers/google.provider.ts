@@ -3,9 +3,7 @@ import {
   AuthProvider,
   AuthProviderAbstract,
 } from '@gitroom/backend/services/auth/providers.interface';
-
-const defaultRedirect = () =>
-  `${process.env.FRONTEND_URL}/integrations/social/youtube`;
+import { youtubeRedirectUri } from '@gitroom/nestjs-libraries/integrations/social/youtube.redirect-uri';
 
 const makeClient = (redirectUri: string) =>
   new google.auth.OAuth2({
@@ -17,7 +15,7 @@ const makeClient = (redirectUri: string) =>
 @AuthProvider({ provider: 'GOOGLE' })
 export class GoogleProvider extends AuthProviderAbstract {
   generateLink(query?: { redirect_uri?: string }) {
-    const redirectUri = query?.redirect_uri || defaultRedirect();
+    const redirectUri = query?.redirect_uri || youtubeRedirectUri();
     return makeClient(redirectUri).generateAuthUrl({
       access_type: 'online',
       prompt: 'consent',
@@ -31,13 +29,13 @@ export class GoogleProvider extends AuthProviderAbstract {
   }
 
   async getToken(code: string, redirectUri?: string) {
-    const client = makeClient(redirectUri || defaultRedirect());
+    const client = makeClient(redirectUri || youtubeRedirectUri());
     const { tokens } = await client.getToken(code);
     return tokens.access_token!;
   }
 
   async getUser(providerToken: string) {
-    const client = makeClient(defaultRedirect());
+    const client = makeClient(youtubeRedirectUri());
     client.setCredentials({ access_token: providerToken });
     const { data } = await google
       .oauth2({ version: 'v2', auth: client })

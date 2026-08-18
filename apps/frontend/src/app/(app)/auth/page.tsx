@@ -7,11 +7,30 @@ import Link from 'next/link';
 import { getT } from '@gitroom/react/translation/get.translation.service.backend';
 import { LoginWithOidc } from '@gitroom/frontend/components/auth/login.with.oidc';
 export const metadata: Metadata = {
-  title: `${isGeneralServerSide() ? 'Postiz' : 'Gitroom'} Register`,
+  title: `${
+    process.env.HAPPYM_APPLIANCE_MODE === 'true'
+      ? process.env.HAPPYM_PRODUCT_NAME || 'Social Manager'
+      : isGeneralServerSide()
+      ? 'Postiz'
+      : 'Gitroom'
+  } Register`,
   description: '',
 };
-export default async function Auth(params: {searchParams: Promise<{provider: string}>}) {
+export default async function Auth(params: {
+  searchParams: Promise<{ provider: string }>;
+}) {
   const t = await getT();
+  if (process.env.HAPPYM_APPLIANCE_MODE === 'true') {
+    return (
+      <div className="text-center">
+        {t('registration_is_disabled', 'Registration is disabled')}
+        <br />
+        <Link className="underline hover:font-bold" href="/auth/login">
+          {t('login_instead', 'Login instead')}
+        </Link>
+      </div>
+    );
+  }
   if (process.env.DISABLE_REGISTRATION === 'true') {
     const canRegister = (
       await (await internalFetch('/auth/can-register')).json()

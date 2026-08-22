@@ -76,6 +76,11 @@ import {
   YoutubeThumbnailPublishError,
 } from '@gitroom/nestjs-libraries/integrations/social/youtube.provider';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import {
+  normalizeYoutubeMedia,
+  YoutubeMediaFormatUnsupportedError,
+  YoutubeMediaTranscodeError,
+} from '@gitroom/backend/public-api/services/youtube.media.normalizer';
 
 @ApiTags('Public API')
 @Controller('/public/v1')
@@ -397,11 +402,11 @@ export class PublicIntegrationsController {
       org.id,
       videoReference
     );
-    if (!video || !video.path.toLowerCase().split('?')[0].endsWith('.mp4')) {
+    if (!video) {
       throw new HttpException(
         {
           code: 'media_video_required',
-          message: 'A tenant-owned MP4 video is required.',
+          message: 'A tenant-owned video is required.',
         },
         HttpStatus.BAD_REQUEST
       );
@@ -484,6 +489,31 @@ export class PublicIntegrationsController {
         ).replace(/^\//, '')}${thumbnail.path}`
       : undefined;
 
+    let normalizedVideo;
+    try {
+      normalizedVideo = await normalizeYoutubeMedia(localVideoPath);
+    } catch (error) {
+      if (error instanceof YoutubeMediaFormatUnsupportedError) {
+        throw new HttpException(
+          {
+            code: 'media_format_unsupported',
+            message: 'The video format is not supported.',
+          },
+          HttpStatus.BAD_REQUEST
+        );
+      }
+      if (error instanceof YoutubeMediaTranscodeError) {
+        throw new HttpException(
+          {
+            code: 'media_transcode_failed',
+            message: 'The video could not be converted for YouTube.',
+          },
+          HttpStatus.UNPROCESSABLE_ENTITY
+        );
+      }
+      throw error;
+    }
+
     try {
       const [published] = await provider.post(
         makeId(20),
@@ -492,7 +522,7 @@ export class PublicIntegrationsController {
           {
             id: makeId(20),
             message: body.description || '',
-            media: [{ type: 'video', path: localVideoPath }],
+            media: [{ type: 'video', path: normalizedVideo.path }],
             settings: {
               title: body.title.trim(),
               type: 'unlisted',
@@ -550,6 +580,8 @@ export class PublicIntegrationsController {
         },
         HttpStatus.BAD_GATEWAY
       );
+    } finally {
+      await normalizedVideo.dispose();
     }
   }
 

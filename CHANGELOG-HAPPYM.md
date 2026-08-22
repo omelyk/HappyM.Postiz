@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-beta.3 - 2026-08-22
+
+- Accepted tenant-owned Media Studio WebM renders in the native YouTube publishing route and normalized them server-side to MP4/H.264 with optional AAC audio before resumable upload.
+- Kept MP4 inputs on the zero-copy path and removed every temporary transcode artifact after success or failure without changing the CRM media reference.
+- Added safe `media_transcode_failed` (422) and `media_format_unsupported` (400) contracts without returning ffmpeg output, paths or stack details.
+- Added ffmpeg only to the private appliance image and coordinated `Postiz.NET` and `HappyM.Pharma.Postiz.*` `1.0.0-beta.3`; private Vue remains `1.0.0-alpha.16`.
+
 ## 1.0.0-beta.2 - 2026-08-22
 
 - Added native organization-scoped YouTube video and Shorts publishing through `POST /public/v1/posts/youtube/publish`, reusing the resumable upload engine.

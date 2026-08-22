@@ -7,6 +7,7 @@ describe('YouTube OAuth scopes', () => {
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/youtube.readonly',
       'https://www.googleapis.com/auth/youtube.upload',
+      'https://www.googleapis.com/auth/youtube.force-ssl',
       'https://www.googleapis.com/auth/yt-analytics.readonly',
     ]);
   });
@@ -14,9 +15,6 @@ describe('YouTube OAuth scopes', () => {
   it('does not request broad channel-management or partner scopes', () => {
     expect(YOUTUBE_OAUTH_SCOPES).not.toContain(
       'https://www.googleapis.com/auth/youtube'
-    );
-    expect(YOUTUBE_OAUTH_SCOPES).not.toContain(
-      'https://www.googleapis.com/auth/youtube.force-ssl'
     );
     expect(YOUTUBE_OAUTH_SCOPES).not.toContain(
       'https://www.googleapis.com/auth/youtubepartner'

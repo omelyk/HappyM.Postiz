@@ -70,6 +70,12 @@ import {
   UpdateDto,
   WebhooksDto,
 } from '@gitroom/nestjs-libraries/dtos/webhooks/webhooks.dto';
+import { PublicYoutubePublishDto } from '@gitroom/backend/public-api/dtos/public.youtube.dto';
+import {
+  YoutubeProvider,
+  YoutubeThumbnailPublishError,
+} from '@gitroom/nestjs-libraries/integrations/social/youtube.provider';
+import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 
 @ApiTags('Public API')
 @Controller('/public/v1')
@@ -104,6 +110,7 @@ export class PublicIntegrationsController {
         'providers',
         'signed-webhooks',
         'video',
+        'youtube-publish',
       ],
     };
   }
@@ -335,6 +342,215 @@ export class PublicIntegrationsController {
       : 'API';
 
     return this._postsService.createPost(org.id, body, creationMethod);
+  }
+
+  @Post('/posts/youtube/publish')
+  @CheckPolicies([AuthorizationActions.Create, Sections.POSTS_PER_MONTH])
+  async publishYoutube(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: PublicYoutubePublishDto
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    const videoReference = body.videoMediaId || body.videoPath;
+    if (!videoReference) {
+      throw new HttpException(
+        {
+          code: 'media_video_required',
+          message: 'A tenant-owned video media reference is required.',
+        },
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    if (
+      !body.title?.trim() ||
+      !['yt-video', 'yt-shorts'].includes(body.formatHint)
+    ) {
+      throw new HttpException(
+        {
+          code: 'youtube_request_invalid',
+          message: 'The YouTube publish request is invalid.',
+        },
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    const integration = await this._integrationService.getIntegrationById(
+      org.id,
+      body.accountId
+    );
+    if (
+      !integration ||
+      integration.providerIdentifier !== 'youtube' ||
+      integration.disabled
+    ) {
+      throw new HttpException(
+        {
+          code: 'youtube_account_not_found',
+          message: 'The YouTube account was not found.',
+        },
+        HttpStatus.NOT_FOUND
+      );
+    }
+
+    const video = await this._mediaService.getMediaForOrganization(
+      org.id,
+      videoReference
+    );
+    if (!video || !video.path.toLowerCase().split('?')[0].endsWith('.mp4')) {
+      throw new HttpException(
+        {
+          code: 'media_video_required',
+          message: 'A tenant-owned MP4 video is required.',
+        },
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    const thumbnailReference = body.thumbnailMediaId || body.thumbnailPath;
+    const thumbnail = thumbnailReference
+      ? await this._mediaService.getMediaForOrganization(
+          org.id,
+          thumbnailReference
+        )
+      : undefined;
+    if (thumbnailReference && !thumbnail) {
+      throw new HttpException(
+        {
+          code: 'thumbnail_rejected',
+          message: 'The thumbnail was not found in this organization.',
+        },
+        HttpStatus.UNPROCESSABLE_ENTITY
+      );
+    }
+    if (
+      thumbnail &&
+      !/\.(jpe?g|png)$/i.test(thumbnail.path.toLowerCase().split('?')[0])
+    ) {
+      throw new HttpException(
+        {
+          code: 'thumbnail_rejected',
+          message: 'The thumbnail must be JPEG or PNG.',
+        },
+        HttpStatus.UNPROCESSABLE_ENTITY
+      );
+    }
+
+    const provider = this._integrationManager.getSocialIntegration(
+      'youtube'
+    ) as YoutubeProvider;
+    let accessToken = integration.token;
+    let scope: 'ok' | 'upload' | 'thumbnail';
+    try {
+      scope = await provider.validatePublishScopes(accessToken, !!thumbnail);
+    } catch {
+      const refreshed = await this._refreshIntegrationService.refresh(
+        integration,
+        'native YouTube publish preflight'
+      );
+      if (!refreshed) {
+        throw new HttpException(
+          {
+            code: 'youtube_authentication_required',
+            message: 'Reconnect the YouTube account.',
+          },
+          HttpStatus.UNAUTHORIZED
+        );
+      }
+      accessToken = refreshed.accessToken;
+      scope = await provider
+        .validatePublishScopes(accessToken, !!thumbnail)
+        .catch(() => 'upload' as const);
+    }
+
+    if (scope !== 'ok') {
+      throw new HttpException(
+        {
+          code:
+            scope === 'thumbnail'
+              ? 'thumbnail_scope_missing'
+              : 'youtube_scope_insufficient',
+          message:
+            'Reconnect YouTube and grant the required publishing permissions.',
+        },
+        HttpStatus.FORBIDDEN
+      );
+    }
+
+    const localVideoPath = `${process.env.UPLOAD_DIRECTORY || ''}${video.path}`;
+    const thumbnailUrl = thumbnail
+      ? `${(process.env.FRONTEND_URL || '').replace(/\/$/, '')}/${(
+          process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY || ''
+        ).replace(/^\//, '')}${thumbnail.path}`
+      : undefined;
+
+    try {
+      const [published] = await provider.post(
+        makeId(20),
+        accessToken,
+        [
+          {
+            id: makeId(20),
+            message: body.description || '',
+            media: [{ type: 'video', path: localVideoPath }],
+            settings: {
+              title: body.title.trim(),
+              type: 'unlisted',
+              selfDeclaredMadeForKids: 'no',
+              tags: [],
+              ...(thumbnailUrl ? { thumbnail: { path: thumbnailUrl } } : {}),
+            },
+          },
+        ],
+        integration
+      );
+      const videoId = published.postId;
+      return {
+        videoId,
+        url:
+          body.formatHint === 'yt-shorts'
+            ? `https://www.youtube.com/shorts/${videoId}`
+            : published.releaseURL,
+        formatHint: body.formatHint,
+        thumbnailApplied: !!thumbnail,
+      };
+    } catch (error) {
+      if (error instanceof YoutubeThumbnailPublishError) {
+        throw new HttpException(
+          {
+            code:
+              error.reason === 'scope'
+                ? 'thumbnail_scope_missing'
+                : 'thumbnail_rejected',
+            message:
+              error.reason === 'scope'
+                ? 'Reconnect YouTube and grant the thumbnail permission.'
+                : 'YouTube rejected the custom thumbnail.',
+            videoId: error.videoId,
+            url: `https://www.youtube.com/watch?v=${error.videoId}`,
+          },
+          error.reason === 'scope'
+            ? HttpStatus.FORBIDDEN
+            : HttpStatus.UNPROCESSABLE_ENTITY
+        );
+      }
+      if (error instanceof RefreshToken) {
+        throw new HttpException(
+          {
+            code: 'youtube_authentication_required',
+            message: 'Reconnect the YouTube account.',
+          },
+          HttpStatus.UNAUTHORIZED
+        );
+      }
+      throw new HttpException(
+        {
+          code: 'youtube_publish_failed',
+          message: 'YouTube could not publish the video.',
+        },
+        HttpStatus.BAD_GATEWAY
+      );
+    }
   }
 
   @Delete('/posts/:id')

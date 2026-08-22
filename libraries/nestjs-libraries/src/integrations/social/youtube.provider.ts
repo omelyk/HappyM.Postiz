@@ -54,6 +54,22 @@ const clientAndYoutube = () => {
   return { client, youtube, oauth2, youtubeAnalytics, redirectUri };
 };
 
+export class YoutubeThumbnailPublishError extends BadBody {
+  constructor(
+    public readonly reason: 'scope' | 'rejected',
+    public readonly videoId: string
+  ) {
+    super(
+      'youtube',
+      '{}',
+      '{}',
+      reason === 'scope'
+        ? 'The connected YouTube account is missing the thumbnail scope.'
+        : 'YouTube rejected the custom thumbnail.'
+    );
+  }
+}
+
 @Rules('YouTube must have on video attachment, it cannot be empty')
 export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   override maxConcurrentJob = 200; // YouTube has strict upload quotas
@@ -66,6 +82,25 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   editor = 'normal' as const;
   maxLength() {
     return 5000;
+  }
+
+  async validatePublishScopes(
+    accessToken: string,
+    requireThumbnail: boolean
+  ): Promise<'ok' | 'upload' | 'thumbnail'> {
+    const { client } = clientAndYoutube();
+    const token = await client.getTokenInfo(accessToken);
+    const scopes = new Set(token.scopes ?? []);
+    if (!scopes.has('https://www.googleapis.com/auth/youtube.upload')) {
+      return 'upload';
+    }
+    if (
+      requireThumbnail &&
+      !scopes.has('https://www.googleapis.com/auth/youtube.force-ssl')
+    ) {
+      return 'thumbnail';
+    }
+    return 'ok';
   }
 
   override async checkValidity(
@@ -781,20 +816,32 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       client.setCredentials({ access_token: accessToken });
       const youtubeClient = youtube(client);
 
-      await this.runInConcurrent(async () =>
-        youtubeClient.thumbnails.set({
-          videoId,
-          media: {
-            body: (
-              await this.getSsrfSafeAxios()({
-                url: pendingData.thumbnail,
-                method: 'GET',
-                responseType: 'stream',
-              })
-            ).data,
-          },
-        })
-      );
+      try {
+        await this.runInConcurrent(async () =>
+          youtubeClient.thumbnails.set({
+            videoId,
+            media: {
+              body: (
+                await this.getSsrfSafeAxios()({
+                  url: pendingData.thumbnail,
+                  method: 'GET',
+                  responseType: 'stream',
+                })
+              ).data,
+            },
+          })
+        );
+      } catch (error: any) {
+        const serialized = JSON.stringify(error?.response?.data ?? {});
+        const missingScope =
+          error?.response?.status === 403 &&
+          (serialized.includes('insufficientPermissions') ||
+            serialized.includes('insufficient authentication scopes'));
+        throw new YoutubeThumbnailPublishError(
+          missingScope ? 'scope' : 'rejected',
+          String(videoId)
+        );
+      }
     }
 
     return {

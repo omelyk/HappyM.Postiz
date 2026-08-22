@@ -1,5 +1,12 @@
 # HappyM change log
 
+## 1.0.0-beta.2 - 2026-08-22
+
+- Added native organization-scoped YouTube video and Shorts publishing through `POST /public/v1/posts/youtube/publish`, reusing the resumable upload engine.
+- Restricted video and thumbnail resolution to media owned by the authenticated organization and added stable semantic errors for missing video, OAuth scopes and rejected thumbnails.
+- Added `youtube.force-ssl` to new YouTube grants for custom thumbnail support without requesting broad channel-management or partner scopes.
+- Coordinated the image with `HappyM.Pharma.Postiz.*` and `Postiz.NET` `1.0.0-beta.2`; the private Vue package remains `1.0.0-alpha.16` because its contract is unchanged.
+
 ## 1.0.0-beta.1 - 2026-08-18
 
 - Consolidated the complete Social Manager appliance, embed, workspace, native API and Mastra self-healing line onto the current Postiz `main` branch.

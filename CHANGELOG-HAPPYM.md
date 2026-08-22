@@ -1,5 +1,11 @@
 # HappyM change log
 
+## 1.0.0-beta.4 - 2026-08-22
+
+- Added a 30-minute nginx timeout exclusively for the native YouTube publish mutation so WebM normalization plus resumable upload is not cut off by the general 90-second API timeout.
+- Explicitly disabled upstream replay for the long-running publish mutation and forwarded only the required tenant, authorization and correlation headers.
+- Coordinated the appliance with `Postiz.NET` and `HappyM.Pharma.Postiz.*` `1.0.0-beta.4` after the WebM implementation introduced in beta.3.
+
 ## 1.0.0-beta.3 - 2026-08-22
 
 - Accepted tenant-owned Media Studio WebM renders in the native YouTube publishing route and normalized them server-side to MP4/H.264 with optional AAC audio before resumable upload.

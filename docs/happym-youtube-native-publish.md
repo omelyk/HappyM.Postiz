@@ -1,6 +1,6 @@
 # Native YouTube publishing
 
-Release `1.0.0-beta.3` exposes an organization-scoped M2M route:
+Release `1.0.0-beta.4` exposes an organization-scoped M2M route:
 
 `POST /public/v1/posts/youtube/publish`
 
@@ -11,3 +11,5 @@ The route uses the existing YouTube resumable upload implementation and returns 
 New YouTube connections request `youtube.upload` and `youtube.force-ssl`. Existing connections that predate this release must be reconnected before using custom thumbnails. Stable errors include `media_video_required`, `youtube_scope_insufficient`, `thumbnail_scope_missing`, and `thumbnail_rejected`. Secrets and Google response bodies are never returned or logged by this contract.
 
 Media Studio renders can be MP4 or WebM. MP4 is streamed without conversion. WebM is normalized inside the appliance to a temporary MP4 using H.264 video and AAC when an audio track exists; the logical CRM media reference remains unchanged and the temporary file is always removed. Unsupported containers return `media_format_unsupported` (400), while conversion failures return `media_transcode_failed` (422). ffmpeg output, local paths and stack details are never exposed.
+
+The appliance grants only this exact mutation a 30-minute proxy window and disables nginx upstream replay. `Postiz.NET` uses the same 30-minute default through `PostizOptions.YoutubePublishTimeout`; callers can reduce or increase it explicitly when their deployment requires a different operational budget.

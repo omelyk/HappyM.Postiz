@@ -12,10 +12,12 @@ import { PublicIntegrationsController } from '@gitroom/backend/public-api/routes
 import { PublicAuthMiddleware } from '@gitroom/backend/services/auth/public.auth.middleware';
 import { PublicChatController } from '@gitroom/backend/public-api/routes/v1/public.chat.controller';
 import { PublicChatService } from '@gitroom/backend/public-api/services/public.chat.service';
+import { PublicPrePublishRenderController } from '@gitroom/backend/public-api/routes/v1/public.prepublish-render.controller';
 
 const authenticatedController = [
   PublicIntegrationsController,
   PublicChatController,
+  PublicPrePublishRenderController,
 ];
 @Module({
   imports: [UploadModule],

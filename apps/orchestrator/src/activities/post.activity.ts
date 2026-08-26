@@ -25,6 +25,10 @@ import {
   postId as postIdSearchParam,
 } from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
+import {
+  PrePublishRenderService,
+  RenderCorrelation,
+} from '@gitroom/nestjs-libraries/database/prisma/prepublish-render/prepublish-render.service';
 
 // Drops fields the workflow and downstream activities never read — biggest wins are `error` (grows per retry) and `childrenPost` (Prisma side-loads it on every recursive row).
 function slimPost(post: any) {
@@ -64,7 +68,8 @@ export class PostActivity {
     private _refreshIntegrationService: RefreshIntegrationService,
     private _webhookService: WebhooksService,
     private _temporalService: TemporalService,
-    private _subscriptionService: SubscriptionService
+    private _subscriptionService: SubscriptionService,
+    private _prePublishRenderService: PrePublishRenderService
   ) {}
 
   @ActivityMethod()
@@ -78,32 +83,35 @@ export class PostActivity {
     for (const post of list) {
       await this._temporalService.client
         .getRawClient()
-        .workflow.signalWithStart('postWorkflowV106', {
-          workflowId: `post_${post.id}`,
-          taskQueue: 'main',
-          signal: 'poke',
-          workflowIdConflictPolicy: 'USE_EXISTING',
-          signalArgs: [],
-          args: [
-            {
-              taskQueue: post.integration.providerIdentifier
-                .split('-')[0]
-                .toLowerCase(),
-              postId: post.id,
-              organizationId: post.organizationId,
-            },
-          ],
-          typedSearchAttributes: new TypedSearchAttributes([
-            {
-              key: postIdSearchParam,
-              value: post.id,
-            },
-            {
-              key: organizationId,
-              value: post.organizationId,
-            },
-          ]),
-        });
+        .workflow.signalWithStart(
+          post.renderRequired ? 'postWorkflowV107' : 'postWorkflowV106',
+          {
+            workflowId: `post_${post.id}`,
+            taskQueue: 'main',
+            signal: 'poke',
+            workflowIdConflictPolicy: 'USE_EXISTING',
+            signalArgs: [],
+            args: [
+              {
+                taskQueue: post.integration.providerIdentifier
+                  .split('-')[0]
+                  .toLowerCase(),
+                postId: post.id,
+                organizationId: post.organizationId,
+              },
+            ],
+            typedSearchAttributes: new TypedSearchAttributes([
+              {
+                key: postIdSearchParam,
+                value: post.id,
+              },
+              {
+                key: organizationId,
+                value: post.organizationId,
+              },
+            ]),
+          }
+        );
     }
   }
 
@@ -128,6 +136,52 @@ export class PostActivity {
     }
 
     return post;
+  }
+
+  @ActivityMethod()
+  ensureRenderOccurrence(
+    orgId: string,
+    postId: string,
+    integrationId: string,
+    sequence: number,
+    scheduledFor: Date,
+    leadTimeSeconds: number,
+    correlation: RenderCorrelation
+  ) {
+    return this._prePublishRenderService.ensureOccurrence(
+      orgId,
+      postId,
+      integrationId,
+      sequence,
+      scheduledFor,
+      leadTimeSeconds,
+      correlation
+    );
+  }
+
+  @ActivityMethod()
+  markRenderAwaiting(orgId: string, occurrenceId: string) {
+    return this._prePublishRenderService.markAwaiting(orgId, occurrenceId);
+  }
+
+  @ActivityMethod()
+  getRenderWorkflowState(orgId: string, occurrenceId: string) {
+    return this._prePublishRenderService.workflowState(orgId, occurrenceId);
+  }
+
+  @ActivityMethod()
+  timeoutRenderOccurrence(orgId: string, occurrenceId: string) {
+    return this._prePublishRenderService.timeout(orgId, occurrenceId);
+  }
+
+  @ActivityMethod()
+  beginRenderPublishing(orgId: string, occurrenceId: string) {
+    return this._prePublishRenderService.beginPublishing(orgId, occurrenceId);
+  }
+
+  @ActivityMethod()
+  completeRenderOccurrence(orgId: string, occurrenceId: string) {
+    return this._prePublishRenderService.completeFromPost(orgId, occurrenceId);
   }
 
   @ActivityMethod()
@@ -225,6 +279,10 @@ export class PostActivity {
     posts: Post[],
     allowPending: boolean
   ) {
+    await this._prePublishRenderService.assertPublishAllowed(
+      integration.organizationId,
+      posts[0].id
+    );
     if (process.env.STRIPE_SECRET_KEY) {
       const subscription = await this._subscriptionService.getSubscription(
         integration.organizationId

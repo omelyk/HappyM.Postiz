@@ -87,11 +87,13 @@ export async function postWorkflowV106({
   postId,
   organizationId,
   postNow = false,
+  disableRepeat = false,
 }: {
   taskQueue: string;
   postId: string;
   organizationId: string;
   postNow?: boolean;
+  disableRepeat?: boolean;
 }) {
   // Dynamic task queue, for concurrency
   const {
@@ -211,10 +213,7 @@ export async function postWorkflowV106({
     type: 'retry' | 'stop' | 'bad-body' | 'timeout' | 'unknown';
     message: string;
   }> => {
-    if (
-      err instanceof ActivityFailure &&
-      err.cause instanceof TimeoutFailure
-    ) {
+    if (err instanceof ActivityFailure && err.cause instanceof TimeoutFailure) {
       return { type: 'timeout', message: '' };
     }
 
@@ -543,16 +542,17 @@ export async function postWorkflowV106({
   );
 
   // Check if the post is repeatable
-  const repeatPost = !post.intervalInDays
-    ? []
-    : [
-        {
-          type: 'repeat-post',
-          delay:
-            post.intervalInDays * 24 * 60 * 60 * 1000 -
-            (new Date().getTime() - startTime.getTime()),
-        },
-      ];
+  const repeatPost =
+    !post.intervalInDays || disableRepeat
+      ? []
+      : [
+          {
+            type: 'repeat-post',
+            delay:
+              post.intervalInDays * 24 * 60 * 60 * 1000 -
+              (new Date().getTime() - startTime.getTime()),
+          },
+        ];
 
   // Sort all the actions by delay, so we can process them in order
   const list = sortBy(

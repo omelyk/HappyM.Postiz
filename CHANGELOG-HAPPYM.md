@@ -1,5 +1,15 @@
 # HappyM change log
 
+## 1.0.0-beta.5 - 2026-08-26
+
+PrePublish-Render-Hook: Warning
+- Contract version: `prepublish-render/v1`
+- Breaking: no
+- Gate enforce: yes (must block publish without attach)
+- Test evidence: durable gate Jest suite (lease/double claim/double attach/consumer kill/restart/tenant/recurrence), typed SDK tests on .NET 8/9, backend and orchestrator production builds.
+- Added organization-scoped render occurrences, expiring claim leases, idempotent rendered-media attach, Temporal V107 gating and a second guard at the provider mutation boundary.
+- Known limit: one target per occurrence; joint Pharma/Docker/Temporal UAT remains required, so consumer enablement must use a feature flag.
+
 ## 1.0.0-beta.4 - 2026-08-22
 
 - Added a 30-minute nginx timeout exclusively for the native YouTube publish mutation so WebM normalization plus resumable upload is not cut off by the general 90-second API timeout.

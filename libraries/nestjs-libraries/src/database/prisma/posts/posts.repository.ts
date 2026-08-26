@@ -59,6 +59,7 @@ export class PostsRepository {
           },
         },
         publishDate: true,
+        renderRequired: true,
       },
     });
   }
@@ -575,6 +576,13 @@ export class PostsRepository {
         delay: value.delay || 0,
         group,
         intervalInDays: inter ? +inter : null,
+        renderRequired: !!body.prePublishRender,
+        renderLeadTimeSeconds:
+          body.prePublishRender?.leadTimeSeconds ??
+          Number(process.env.HAPPYM_RENDER_LEAD_TIME_SECONDS || 600),
+        renderCorrelation: body.prePublishRender
+          ? JSON.stringify(body.prePublishRender.correlation)
+          : null,
         approvedSubmitForOrder: APPROVED_SUBMIT_FOR_ORDER.NO,
         ...(type === 'create' ? { creationMethod } : {}),
         ...(state === 'update'

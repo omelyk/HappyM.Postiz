@@ -54,6 +54,7 @@ import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { weightedLength } from '@gitroom/helpers/utils/count.length';
+import { PrePublishRenderService } from '@gitroom/nestjs-libraries/database/prisma/prepublish-render/prepublish-render.service';
 
 type PostWithConditionals = Post & {
   integration?: Integration;
@@ -71,7 +72,8 @@ export class PostsService {
     private _shortLinkService: ShortLinkService,
     private _openaiService: OpenaiService,
     private _temporalService: TemporalService,
-    private _refreshIntegrationService: RefreshIntegrationService
+    private _refreshIntegrationService: RefreshIntegrationService,
+    private _prePublishRenderService: PrePublishRenderService
   ) {}
 
   searchForMissingThreeHoursPosts() {
@@ -729,9 +731,16 @@ export class PostsService {
     }
 
     try {
+      const scheduledPost = await this._postRepository.getPostById(
+        postId,
+        orgId
+      );
+      const workflowName = scheduledPost?.renderRequired
+        ? 'postWorkflowV107'
+        : 'postWorkflowV106';
       await this._temporalService.client
         .getRawClient()
-        ?.workflow.start('postWorkflowV106', {
+        ?.workflow.start(workflowName, {
           workflowId: `post_${postId}`,
           taskQueue: 'main',
           workflowIdConflictPolicy: 'TERMINATE_EXISTING',
@@ -830,7 +839,10 @@ export class PostsService {
           errors = err?.message || 'Invalid media';
         }
 
-        const maximumCharacters = provider.maxLength(additionalSettings, settings);
+        const maximumCharacters = provider.maxLength(
+          additionalSettings,
+          settings
+        );
         const isX = integration.providerIdentifier === 'x';
 
         const emptyContent = (post.value || []).some((a) => {
@@ -882,7 +894,11 @@ export class PostsService {
   // the platform: require the explicit `republish` opt-in instead. The message
   // doubles as the confirmation dialog for API/MCP automation.
   private guardAgainstRepublish(
-    post: { state: State; publishDate: Date; integration?: { providerIdentifier: string } } | null,
+    post: {
+      state: State;
+      publishDate: Date;
+      integration?: { providerIdentifier: string };
+    } | null,
     source: 'createPost' | 'changeDate'
   ) {
     if (post?.state !== 'PUBLISHED') {
@@ -895,7 +911,9 @@ export class PostsService {
     throw new BadRequestException(
       `This post was already published on ${dayjs
         .utc(post.publishDate)
-        .format('YYYY-MM-DD HH:mm')} UTC. Saving it this way would publish it again to ${
+        .format(
+          'YYYY-MM-DD HH:mm'
+        )} UTC. Saving it this way would publish it again to ${
         post.integration?.providerIdentifier || 'the channel'
       }. To edit without republishing, ${howToUpdate}. To intentionally publish again, pass republish: true.`
     );
@@ -964,9 +982,23 @@ export class PostsService {
       }
 
       Sentry.metrics.count('post_created', 1);
+      const renderOccurrence = posts[0].renderRequired
+        ? await this._prePublishRenderService.ensureOccurrence(
+            orgId,
+            posts[0].id,
+            posts[0].integrationId,
+            0,
+            posts[0].publishDate,
+            posts[0].renderLeadTimeSeconds,
+            JSON.parse(posts[0].renderCorrelation || '{}')
+          )
+        : undefined;
       postList.push({
         postId: posts[0].id,
         integration: post.integration.id,
+        ...(renderOccurrence
+          ? { occurrenceId: renderOccurrence.occurrenceId }
+          : {}),
       });
     }
 

@@ -6,6 +6,8 @@ import {
   IsDefined,
   IsIn,
   IsNumber,
+  Max,
+  Min,
   IsOptional,
   IsString,
   Validate,
@@ -26,6 +28,37 @@ export class Integration {
   @IsDefined()
   @IsString()
   id: string;
+}
+
+export class PrePublishRenderCorrelation {
+  @IsString()
+  @IsDefined()
+  crmSocialPostId: string;
+
+  @IsString()
+  @IsDefined()
+  snapshotId: string;
+
+  @IsString()
+  @IsDefined()
+  pharmacyGroupId: string;
+
+  @IsString()
+  @IsOptional()
+  pharmacyId?: string;
+}
+
+export class PrePublishRenderConfig {
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => PrePublishRenderCorrelation)
+  correlation: PrePublishRenderCorrelation;
+
+  @IsNumber()
+  @Min(60)
+  @Max(3600)
+  @IsOptional()
+  leadTimeSeconds?: number;
 }
 
 export class PostContent {
@@ -78,6 +111,11 @@ export class Post {
     },
   })
   settings: AllProvidersSettings;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PrePublishRenderConfig)
+  prePublishRender?: PrePublishRenderConfig;
 }
 
 class Tags {

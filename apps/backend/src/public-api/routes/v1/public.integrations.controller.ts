@@ -104,7 +104,7 @@ export class PublicIntegrationsController {
       product: 'HappyM.Postiz',
       apiVersion: '1',
       upstreamVersion: process.env.POSTIZ_UPSTREAM_VERSION || '2.23.0',
-      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-alpha.8',
+      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-beta.5',
       capabilities: [
         'analytics',
         'chat',
@@ -112,6 +112,7 @@ export class PublicIntegrationsController {
         'media',
         'notifications',
         'posts',
+        'prepublish-render/v1',
         'providers',
         'signed-webhooks',
         'video',
@@ -284,6 +285,21 @@ export class PublicIntegrationsController {
     body.type = rawBody.type;
 
     if (
+      rawBody.type !== 'schedule' &&
+      body.posts.some((post) => !!post.prePublishRender)
+    ) {
+      throw new HttpException(
+        {
+          code: 'render_payload_invalid',
+          reasonCode: 'RenderPayloadInvalid',
+          message:
+            'Pre-publish rendering is supported only for scheduled posts.',
+        },
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    if (
       process.env.RESTRICT_UPLOAD_DOMAINS &&
       body.posts.some((p) =>
         p.value.some((a) =>
@@ -316,8 +332,14 @@ export class PublicIntegrationsController {
       });
     };
 
+    const renderRequiredIntegrations = new Set(
+      body.posts
+        .filter((post) => !!post.prePublishRender)
+        .map((post) => post.integration.id)
+    );
+
     for (const item of validation) {
-      if (item.emptyContent) {
+      if (item.emptyContent && !renderRequiredIntegrations.has(item.id)) {
         fail(
           item,
           'Your post should have at least one character or one image.'
@@ -330,10 +352,10 @@ export class PublicIntegrationsController {
         if (!item.valid) {
           fail(item, item.settingsError || 'Please fix your settings');
         }
-        if (item.errors !== true) {
+        if (item.errors !== true && !renderRequiredIntegrations.has(item.id)) {
           fail(item, item.errors as string);
         }
-        if (item.tooLong) {
+        if (item.tooLong && !renderRequiredIntegrations.has(item.id)) {
           fail(item, 'post is too long, please fix it');
         }
       }

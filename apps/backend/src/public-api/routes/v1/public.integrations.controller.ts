@@ -82,6 +82,11 @@ import {
   YoutubeMediaFormatUnsupportedError,
   YoutubeMediaTranscodeError,
 } from '@gitroom/backend/public-api/services/youtube.media.normalizer';
+import {
+  normalizePublicPostCommentSettings,
+  postCommentSettingsContract,
+  PostCommentSettingsInvalidError,
+} from '@gitroom/backend/public-api/services/post.comment.settings';
 
 @ApiTags('Public API')
 @Controller('/public/v1')
@@ -105,7 +110,7 @@ export class PublicIntegrationsController {
       product: 'HappyM.Postiz',
       apiVersion: '1',
       upstreamVersion: process.env.POSTIZ_UPSTREAM_VERSION || '2.23.0',
-      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-beta.6',
+      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-beta.7',
       capabilities: [
         'analytics',
         'chat',
@@ -278,15 +283,30 @@ export class PublicIntegrationsController {
     @Body() rawBody: any
   ) {
     Sentry.metrics.count('public_api-request', 1);
+    let normalizedRawBody: any;
+    try {
+      normalizedRawBody = normalizePublicPostCommentSettings(rawBody);
+    } catch (error) {
+      if (error instanceof PostCommentSettingsInvalidError) {
+        throw new HttpException(
+          {
+            code: 'post_comment_settings_invalid',
+            message: error.message,
+          },
+          HttpStatus.BAD_REQUEST
+        );
+      }
+      throw error;
+    }
     const body = await this._postsService.mapTypeToPost(
-      rawBody,
+      normalizedRawBody,
       org.id,
-      rawBody?.type === 'draft' || true
+      normalizedRawBody?.type === 'draft' || true
     );
-    body.type = rawBody.type;
+    body.type = normalizedRawBody.type;
 
     if (
-      rawBody.type !== 'schedule' &&
+      normalizedRawBody.type !== 'schedule' &&
       body.posts.some((post) => !!post.prePublishRender)
     ) {
       throw new HttpException(
@@ -364,9 +384,9 @@ export class PublicIntegrationsController {
 
     const allowedCreationMethods = ['CLI', 'API'] as const;
     const creationMethod = allowedCreationMethods.includes(
-      rawBody.creationMethod
+      normalizedRawBody.creationMethod
     )
-      ? (rawBody.creationMethod as 'CLI' | 'API')
+      ? (normalizedRawBody.creationMethod as 'CLI' | 'API')
       : 'API';
 
     return this._postsService.createPost(org.id, body, creationMethod);
@@ -836,6 +856,9 @@ export class PublicIntegrationsController {
       : getValidationSchemas()[integration.dto.name];
     const tools = this._integrationManager.getAllTools();
     const rules = this._integrationManager.getAllRulesDescription();
+    const provider = this._integrationManager.getSocialIntegration(
+      integration.identifier
+    ) as any;
 
     return {
       output: {
@@ -843,6 +866,9 @@ export class PublicIntegrationsController {
         maxLength,
         settings: !schemas ? 'No additional settings required' : schemas,
         tools: tools[integration.identifier],
+        postComments: postCommentSettingsContract(
+          typeof provider?.comment === 'function'
+        ),
       },
     };
   }

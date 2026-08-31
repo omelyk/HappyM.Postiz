@@ -1,5 +1,15 @@
 # HappyM change log
 
+## 1.0.0-beta.7 - 2026-08-31
+
+Post-Settings schema: Warning
+- Contract version: `post-comments/v1`; breaking: no.
+- Declared `Settings.firstComment` as the canonical string key for the first public comment below a post and `Settings.comments` as the ordered extra-comment array.
+- Accepted extra comment strings or `{ content, delay }` objects, where `delay` is a non-negative integer number of minutes after the previous item.
+- Normalized the public settings keys into the engine-native `posts[].value[1..]` representation before DTO validation, while preserving all unrelated provider settings and CRM `validUntil` metadata.
+- Added provider-aware `Output.postComments` discovery to integration settings; Facebook and Instagram report native comment support.
+- Evidence: public comment normalization/contract/provider suite 5/5 and typed SDK suite on .NET 8/9. Joint HappyM.Pharma Instagram/Facebook publication UAT remains required before production promotion.
+
 ## 1.0.0-beta.6 - 2026-08-31
 
 Studio-Render-WebM-UAT-Fail: Warning

@@ -78,6 +78,7 @@ import {
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import {
   normalizeYoutubeMedia,
+  resolveYoutubeMediaInputPath,
   YoutubeMediaFormatUnsupportedError,
   YoutubeMediaTranscodeError,
 } from '@gitroom/backend/public-api/services/youtube.media.normalizer';
@@ -104,7 +105,7 @@ export class PublicIntegrationsController {
       product: 'HappyM.Postiz',
       apiVersion: '1',
       upstreamVersion: process.env.POSTIZ_UPSTREAM_VERSION || '2.23.0',
-      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-beta.5',
+      forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-beta.6',
       capabilities: [
         'analytics',
         'chat',
@@ -504,7 +505,7 @@ export class PublicIntegrationsController {
       );
     }
 
-    const localVideoPath = `${process.env.UPLOAD_DIRECTORY || ''}${video.path}`;
+    const localVideoPath = resolveYoutubeMediaInputPath(video.path);
     const thumbnailUrl = thumbnail
       ? `${(process.env.FRONTEND_URL || '').replace(/\/$/, '')}/${(
           process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY || ''

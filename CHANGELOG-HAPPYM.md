@@ -1,5 +1,15 @@
 # HappyM change log
 
+## 1.0.0-beta.6 - 2026-08-31
+
+Studio-Render-WebM-UAT-Fail: Warning
+- Breaking: no; the native YouTube publish and SDK contracts are unchanged.
+- Fixed local appliance media resolution when the database stores an absolute Social Manager `/uploads/...` URL, while preserving remote-storage URLs and rejecting path traversal.
+- Upgraded the appliance runtime to Node.js 22.23.1 and disabled the unstable optimizing compiler for backend/orchestrator build and runtime after reproducing the V8 `unreachable code` / `Illegal instruction` crash.
+- Reworked backend watchdog recovery to terminate the container cleanly after sustained failure instead of starting a competing PM2 daemon that could produce `EADDRINUSE` and an extended `nest_down` outage.
+- Evidence: media normalizer Jest suite 9/9, watchdog Node suite 2/2, complete appliance Docker build, healthy four-process runtime with zero restarts and no fatal/V8/address-conflict log signatures.
+- Joint HappyM.Pharma unlisted YouTube UAT remains required before production promotion; no external video was published by this release task.
+
 ## 1.0.0-beta.5 - 2026-08-26
 
 PrePublish-Render-Hook: Warning

@@ -1,5 +1,3 @@
-const { spawn } = require('node:child_process');
-
 const probeUrl =
   process.env.HAPPYM_BACKEND_WATCHDOG_URL ||
   'http://127.0.0.1:3000/internal/happym/appliance/health/';
@@ -10,17 +8,9 @@ const startupGraceMs = Number(
 const failureThreshold = Number(
   process.env.HAPPYM_BACKEND_WATCHDOG_FAILURE_THRESHOLD || 6
 );
-const maxRecoveryAttempts = Number(
-  process.env.HAPPYM_BACKEND_WATCHDOG_MAX_RECOVERY_ATTEMPTS || 3
-);
-const recoveryGraceMs = Number(
-  process.env.HAPPYM_BACKEND_WATCHDOG_RECOVERY_GRACE_MS || 45000
-);
-
-const decideRecoveryAction = (failures, recoveryAttempts) => {
+const decideRecoveryAction = (failures) => {
   if (failures < failureThreshold) return 'wait';
-  if (recoveryAttempts + 1 >= maxRecoveryAttempts) return 'terminate';
-  return 'restart';
+  return 'terminate';
 };
 
 const delay = (milliseconds) =>
@@ -41,51 +31,33 @@ const probe = async () => {
   }
 };
 
-const restartBackend = () =>
-  new Promise((resolve) => {
-    const child = spawn('pm2', ['restart', 'backend', '--update-env'], {
-      stdio: 'inherit',
-    });
-    child.once('exit', resolve);
-    child.once('error', resolve);
-  });
-
 const run = async () => {
   let failures = 0;
-  let recoveryAttempts = 0;
-  let healthySince = 0;
 
   await delay(startupGraceMs);
   for (;;) {
     if (await probe()) {
       failures = 0;
-      healthySince ||= Date.now();
-      if (Date.now() - healthySince >= 300000) recoveryAttempts = 0;
       await delay(intervalMs);
       continue;
     }
 
-    healthySince = 0;
     failures += 1;
-    const action = decideRecoveryAction(failures, recoveryAttempts);
+    const action = decideRecoveryAction(failures);
     if (action === 'wait') {
       await delay(intervalMs);
       continue;
     }
 
-    recoveryAttempts += 1;
-    failures = 0;
-    if (action === 'terminate') {
-      console.error(
-        'Social Manager API recovery exhausted; terminating the container for orchestrator restart'
-      );
-      process.kill(1, 'SIGTERM');
-      return;
-    }
-
-    console.warn('Social Manager API is unavailable; restarting the backend');
-    await restartBackend();
-    await delay(recoveryGraceMs);
+    // pm2-runtime is the container's init process. Invoking the pm2 CLI from
+    // inside one of its children starts a competing daemon and can leave the
+    // old Nest process bound to port 3000 (EADDRINUSE), extending the outage.
+    // Let the container supervisor perform one clean, atomic recovery instead.
+    console.error(
+      'Social Manager API is unavailable; terminating the container for a clean restart'
+    );
+    process.kill(1, 'SIGTERM');
+    return;
   }
 };
 

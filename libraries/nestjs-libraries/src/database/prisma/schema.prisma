@@ -484,6 +484,7 @@ model PrePublishRenderOccurrence {
   publishedAt          DateTime?
   releaseId            String?
   releaseUrl           String?
+  publishReceipt       String?
   failureReason        String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt

@@ -32,7 +32,7 @@ export interface IAuthenticator {
     integrationId: string,
     accessToken: string,
     postId: string,
-    fromDate: number,
+    fromDate: number
   ): Promise<AnalyticsData[]>;
   changeNickname?(
     id: string,
@@ -55,7 +55,6 @@ export interface AnalyticsData {
   data: Array<{ total: string; date: string }>;
   percentageChange: number;
 }
-
 
 export type GenerateAuthUrlResponse = {
   url: string;
@@ -112,6 +111,15 @@ export type PostResponse = {
   releaseURL: string; // The URL of the post on the platform
   status: string; // Status of the operation or initial post status, 'pending' means the workflow must poll checkPostStatus
   pendingData?: any; // Opaque provider state used by checkPostStatus / finalizePost, never inspected by generic code
+  receipts?: ProviderReceipt[]; // Ordered child receipts for composite publishes such as Story sequences
+};
+
+export type ProviderReceipt = {
+  slideIndex: number;
+  providerId: string;
+  releaseUrl: string;
+  providerContainerId?: string;
+  recovered?: boolean;
 };
 
 // Returned by checkPostStatus / finalizePost:
@@ -128,7 +136,12 @@ export type PostResponse = {
 export type PendingCheckResponse =
   | { status: 'pending'; pendingData: any }
   | { status: 'ready'; pendingData: any }
-  | { status: 'completed'; postId: string; releaseURL: string };
+  | {
+      status: 'completed';
+      postId: string;
+      releaseURL: string;
+      receipts?: ProviderReceipt[];
+    };
 
 export type PostDetails<T = any> = {
   id: string;

@@ -10,6 +10,7 @@ class MemoryPrisma {
   occurrences: any[] = [];
   posts: any[] = [];
   mediaRows: any[] = [];
+  providerIdentifier = 'youtube';
 
   prePublishRenderOccurrence: any;
   post: any;
@@ -103,7 +104,7 @@ class MemoryPrisma {
     this.integration = {
       findFirst: async ({ where }: any) =>
         where.id === 'integration-1' && where.organizationId === 'org-a'
-          ? { providerIdentifier: 'youtube' }
+          ? { providerIdentifier: this.providerIdentifier }
           : null,
     };
   }
@@ -295,6 +296,185 @@ describe('PrePublishRenderService durable gate', () => {
       service.get('org-b', occurrences[0].occurrenceId)
     ).rejects.toBeInstanceOf(PrePublishRenderError);
     await expect(service.list('org-b')).resolves.toEqual([]);
+  });
+
+  it('attaches an ordered Story sequence and exposes every child receipt', async () => {
+    db.providerIdentifier = 'instagram';
+    db.posts[0].settings = JSON.stringify({
+      __type: 'instagram',
+      post_type: 'story',
+    });
+    db.mediaRows.push(
+      {
+        id: 'media-2',
+        organizationId: 'org-a',
+        path: 'rendered/slide-1.png',
+        deletedAt: null,
+      },
+      {
+        id: 'media-3',
+        organizationId: 'org-a',
+        path: 'rendered/slide-2.mp4',
+        deletedAt: null,
+      }
+    );
+    db.mediaRows[0].path = 'rendered/slide-0.png';
+
+    const occurrence = await awaiting();
+    const claim = await service.claim(
+      'org-a',
+      occurrence.occurrenceId,
+      'crm-story',
+      'claim-story',
+      300
+    );
+    const targets: RenderTarget[] = [
+      {
+        integrationId: 'integration-1',
+        channel: 'instagram',
+        caption: '',
+        publishMode: 'story_sequence',
+        media: [
+          { mediaId: 'media-1', kind: 'image', mime: 'image/png' },
+          { mediaId: 'media-2', kind: 'image', mime: 'image/png' },
+          { mediaId: 'media-3', kind: 'video', mime: 'video/mp4' },
+        ],
+      },
+    ];
+    const renderedAtUtc = now.toISOString();
+    await service.attach('org-a', occurrence.occurrenceId, 'attach-story', {
+      renderToken: claim.renderToken,
+      correlation,
+      targets,
+      renderedAtUtc,
+      contentHash: computeRenderContentHash({
+        occurrenceId: occurrence.occurrenceId,
+        correlation,
+        targets,
+        renderedAtUtc,
+      }),
+    });
+
+    await service.beginPublishing('org-a', occurrence.occurrenceId);
+    db.posts[0].state = 'PUBLISHED';
+    db.posts[0].releaseId = 'ig-story-3';
+    db.posts[0].releaseURL = 'https://instagram.test/story/3';
+    await service.completeFromPost('org-a', occurrence.occurrenceId, [
+      {
+        slideIndex: 0,
+        providerId: 'ig-story-1',
+        releaseUrl: 'https://instagram.test/story/1',
+      },
+      {
+        slideIndex: 1,
+        providerId: 'ig-story-2',
+        releaseUrl: 'https://instagram.test/story/2',
+      },
+      {
+        slideIndex: 2,
+        providerId: 'ig-story-3',
+        releaseUrl: 'https://instagram.test/story/3',
+      },
+    ]);
+
+    const completed = await service.get('org-a', occurrence.occurrenceId);
+    expect(completed.publishReceipt).toMatchObject({
+      bundleId: `story-sequence:${occurrence.occurrenceId}`,
+      mode: 'story_sequence',
+      provider: 'instagram',
+      status: 'Published',
+    });
+    expect(completed.publishReceipt.children).toEqual([
+      expect.objectContaining({ slideIndex: 0, mediaId: 'media-1' }),
+      expect.objectContaining({ slideIndex: 1, mediaId: 'media-2' }),
+      expect.objectContaining({ slideIndex: 2, mediaId: 'media-3' }),
+    ]);
+  });
+
+  it('rejects Story sequences for unsupported providers', async () => {
+    const occurrence = await awaiting();
+    const claim = await service.claim(
+      'org-a',
+      occurrence.occurrenceId,
+      'crm-story',
+      'claim-story',
+      300
+    );
+    const targets: RenderTarget[] = [
+      {
+        integrationId: 'integration-1',
+        channel: 'youtube',
+        caption: 'Unsupported Story sequence',
+        publishMode: 'story_sequence',
+        media: [
+          { mediaId: 'media-1', kind: 'video', mime: 'video/mp4' },
+          { mediaId: 'media-1', kind: 'video', mime: 'video/mp4' },
+        ],
+      },
+    ];
+    const renderedAtUtc = now.toISOString();
+
+    await expect(
+      service.attach('org-a', occurrence.occurrenceId, 'attach-story', {
+        renderToken: claim.renderToken,
+        correlation,
+        targets,
+        renderedAtUtc,
+        contentHash: computeRenderContentHash({
+          occurrenceId: occurrence.occurrenceId,
+          correlation,
+          targets,
+          renderedAtUtc,
+        }),
+      })
+    ).rejects.toMatchObject({ reasonCode: 'StorySequenceUnsupported' });
+  });
+
+  it('keeps a single-media Story attach backward compatible', async () => {
+    db.providerIdentifier = 'instagram';
+    db.posts[0].settings = JSON.stringify({
+      __type: 'instagram',
+      post_type: 'story',
+    });
+    db.mediaRows[0].path = 'rendered/slide-0.png';
+    const occurrence = await awaiting();
+    const claim = await service.claim(
+      'org-a',
+      occurrence.occurrenceId,
+      'crm-story',
+      'claim-single-story',
+      300
+    );
+    const targets: RenderTarget[] = [
+      {
+        integrationId: 'integration-1',
+        channel: 'instagram',
+        caption: 'Legacy single Story',
+        media: [{ mediaId: 'media-1', kind: 'image', mime: 'image/png' }],
+      },
+    ];
+    const renderedAtUtc = now.toISOString();
+
+    const ready = await service.attach(
+      'org-a',
+      occurrence.occurrenceId,
+      'attach-single-story',
+      {
+        renderToken: claim.renderToken,
+        correlation,
+        targets,
+        renderedAtUtc,
+        contentHash: computeRenderContentHash({
+          occurrenceId: occurrence.occurrenceId,
+          correlation,
+          targets,
+          renderedAtUtc,
+        }),
+      }
+    );
+
+    expect(ready.status).toBe('ReadyToPublish');
+    expect(JSON.parse(db.posts[0].settings).story_sequence).toBeUndefined();
   });
 
   it('persists three distinct recurrence attachments and receipts', async () => {

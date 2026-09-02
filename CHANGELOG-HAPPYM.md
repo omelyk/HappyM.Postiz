@@ -1,5 +1,27 @@
 # HappyM change log
 
+## 1.0.0-beta.8 - 2026-09-02
+
+Story-Sequence: Warning
+- Contract version: `prepublish-render/v2`; breaking: no; `prepublish-render/v1` remains advertised and unchanged.
+- Gate enforce: yes. Added the optional `targets[0].publishMode = "story_sequence"` contract for 2–10 ordered Story slides on Facebook and Instagram providers.
+- Persisted a deterministic bundle receipt with one ordered child receipt per provider Story and exposed it from occurrence get/list responses and the OpenAPI schema.
+- Kept one-media Story attach unchanged, retained content-hash idempotency, rejected unsupported LinkedIn/WhatsApp Story targets, and required MP4 for video slides.
+- Hardened Instagram sequences to publish one slide per durable Temporal step and normalize PNG images to JPEG before provider delivery.
+- Test evidence: durable gate/receipt/provider Jest suites 11/11, complete HappyM backend suite, backend/orchestrator production builds, Postiz.NET and HappyM.Pharma.Postiz.* .NET 8/9 suites.
+- Warning: Meta models a sequence as ordered individual Story objects, not an atomic provider bundle. Live Facebook/Instagram UAT remains required; video-duration validation remains provider-side because Media rows do not contain duration metadata.
+
+## 1.0.0-beta.8 - 2026-09-02
+
+Story-Sequence: Warning
+- Contract version: `prepublish-render/v2`; breaking: no; `prepublish-render/v1` remains advertised and unchanged.
+- Gate enforce: yes. Added the optional `targets[0].publishMode = "story_sequence"` contract for 2–10 ordered Story slides on Facebook and Instagram providers.
+- Persisted a deterministic bundle receipt with one ordered child receipt per provider Story and exposed it from occurrence get/list responses and the OpenAPI schema.
+- Kept one-media Story attach unchanged, retained content-hash idempotency, rejected unsupported LinkedIn/WhatsApp Story targets, and required MP4 for video slides.
+- Hardened Instagram sequences to publish one slide per durable Temporal step and normalize PNG images to JPEG before provider delivery.
+- Test evidence: durable gate/receipt/provider Jest suites 10/10, complete HappyM backend suite, backend/orchestrator production builds, Postiz.NET and HappyM.Pharma.Postiz.* .NET 8/9 suites.
+- Warning: Meta models a sequence as ordered individual Story objects, not an atomic provider bundle. Live Facebook/Instagram UAT remains required; video-duration validation remains provider-side because Media rows do not contain duration metadata.
+
 ## 1.0.0-beta.7 - 2026-08-31
 
 Post-Settings schema: Warning

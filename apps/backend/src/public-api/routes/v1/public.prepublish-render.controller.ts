@@ -8,7 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import {
@@ -18,6 +18,7 @@ import {
 import {
   PublicAttachRenderedDto,
   PublicClaimRenderDto,
+  PublicRenderOccurrenceDto,
 } from '@gitroom/backend/public-api/dtos/public.prepublish-render.dto';
 
 const apiCode: Record<string, string> = {
@@ -28,6 +29,8 @@ const apiCode: Record<string, string> = {
   PublishBlockedNoRender: 'publish_blocked_no_render',
   OccurrenceCancelled: 'occurrence_cancelled',
   OccurrenceNotFound: 'occurrence_not_found',
+  StorySequenceInvalid: 'story_sequence_invalid',
+  StorySequenceUnsupported: 'story_sequence_unsupported',
   TransientEngine: 'transient_engine',
 };
 
@@ -69,6 +72,7 @@ export class PublicPrePublishRenderController {
   }
 
   @Get()
+  @ApiOkResponse({ type: PublicRenderOccurrenceDto, isArray: true })
   list(
     @GetOrgFromRequest() org: Organization,
     @Query('postId') postId?: string,
@@ -85,6 +89,7 @@ export class PublicPrePublishRenderController {
   }
 
   @Get('/:occurrenceId')
+  @ApiOkResponse({ type: PublicRenderOccurrenceDto })
   get(
     @GetOrgFromRequest() org: Organization,
     @Param('occurrenceId') occurrenceId: string
@@ -111,6 +116,7 @@ export class PublicPrePublishRenderController {
   }
 
   @Post('/:occurrenceId/attach-rendered')
+  @ApiOkResponse({ type: PublicRenderOccurrenceDto })
   attach(
     @GetOrgFromRequest() org: Organization,
     @Param('occurrenceId') occurrenceId: string,
@@ -123,6 +129,7 @@ export class PublicPrePublishRenderController {
   }
 
   @Post('/:occurrenceId/cancel')
+  @ApiOkResponse({ type: PublicRenderOccurrenceDto })
   cancel(
     @GetOrgFromRequest() org: Organization,
     @Param('occurrenceId') occurrenceId: string

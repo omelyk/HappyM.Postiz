@@ -299,6 +299,7 @@ export async function postWorkflowV106({
             postId: result.postId,
             releaseURL: result.releaseURL,
             status: 'success',
+            receipts: result.receipts,
           };
         }
 
@@ -647,4 +648,6 @@ export async function postWorkflowV106({
       });
     }
   }
+
+  return postsResults[0];
 }

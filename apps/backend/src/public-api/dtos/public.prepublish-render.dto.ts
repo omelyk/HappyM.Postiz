@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
@@ -46,7 +47,7 @@ export class PublicRenderTargetExtrasDto {
 export class PublicRenderTargetDto {
   @IsString() @IsNotEmpty() integrationId!: string;
   @IsString() @IsNotEmpty() channel!: string;
-  @IsString() @IsNotEmpty() caption!: string;
+  @IsString() caption!: string;
 
   @IsArray()
   @ArrayMinSize(1)
@@ -58,6 +59,11 @@ export class PublicRenderTargetDto {
   @ValidateNested()
   @Type(() => PublicRenderTargetExtrasDto)
   extras?: PublicRenderTargetExtrasDto;
+
+  @IsOptional()
+  @IsIn(['story_sequence'])
+  @ApiPropertyOptional({ enum: ['story_sequence'] })
+  publishMode?: 'story_sequence';
 }
 
 export class PublicAttachRenderedDto {
@@ -75,4 +81,42 @@ export class PublicAttachRenderedDto {
 
   @IsISO8601() renderedAtUtc!: string;
   @IsString() @IsNotEmpty() contentHash!: string;
+}
+
+export class PublicStorySequenceChildReceiptDto {
+  @ApiProperty() slideIndex!: number;
+  @ApiProperty() mediaId!: string;
+  @ApiProperty() providerId!: string;
+  @ApiProperty() releaseUrl!: string;
+  @ApiPropertyOptional() providerContainerId?: string;
+  @ApiPropertyOptional() recovered?: boolean;
+}
+
+export class PublicStorySequencePublishReceiptDto {
+  @ApiProperty() bundleId!: string;
+  @ApiProperty({ enum: ['story_sequence'] }) mode!: 'story_sequence';
+  @ApiProperty() provider!: string;
+  @ApiProperty({ enum: ['Published', 'Failed'] })
+  status!: 'Published' | 'Failed';
+  @ApiProperty({ type: () => [PublicStorySequenceChildReceiptDto] })
+  children!: PublicStorySequenceChildReceiptDto[];
+}
+
+export class PublicRenderOccurrenceDto {
+  @ApiProperty() occurrenceId!: string;
+  @ApiProperty() socialPostId!: string;
+  @ApiProperty() integrationId!: string;
+  @ApiProperty() sequence!: number;
+  @ApiProperty() scheduledFor!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty({ type: () => PublicRenderCorrelationDto })
+  correlation!: PublicRenderCorrelationDto;
+  @ApiPropertyOptional() leaseExpiresAt?: string;
+  @ApiPropertyOptional() renderedAtUtc?: string;
+  @ApiPropertyOptional() publishedAtUtc?: string;
+  @ApiPropertyOptional() releaseId?: string;
+  @ApiPropertyOptional() releaseUrl?: string;
+  @ApiPropertyOptional({ type: () => PublicStorySequencePublishReceiptDto })
+  publishReceipt?: PublicStorySequencePublishReceiptDto;
+  @ApiPropertyOptional() reasonCode?: string;
 }

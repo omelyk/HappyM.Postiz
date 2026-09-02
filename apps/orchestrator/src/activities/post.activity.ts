@@ -180,8 +180,22 @@ export class PostActivity {
   }
 
   @ActivityMethod()
-  completeRenderOccurrence(orgId: string, occurrenceId: string) {
-    return this._prePublishRenderService.completeFromPost(orgId, occurrenceId);
+  completeRenderOccurrence(
+    orgId: string,
+    occurrenceId: string,
+    receipts: Array<{
+      slideIndex: number;
+      providerId: string;
+      releaseUrl: string;
+      providerContainerId?: string;
+      recovered?: boolean;
+    }> = []
+  ) {
+    return this._prePublishRenderService.completeFromPost(
+      orgId,
+      occurrenceId,
+      receipts
+    );
   }
 
   @ActivityMethod()

@@ -30,6 +30,7 @@ export class InstagramProvider
   identifier = 'instagram';
   name = 'Instagram\n(Facebook Business)';
   isBetweenSteps = true;
+  convertToJPEG = true;
   toolTip = 'Instagram must be business and connected to a Facebook page';
   scopes = [
     'instagram_basic',
@@ -355,7 +356,7 @@ export class InstagramProvider
       return {
         type: 'retry' as const,
         value: 'Could not upload your media',
-      }
+      };
     }
 
     if (body.indexOf('2207077') > -1) {
@@ -368,8 +369,9 @@ export class InstagramProvider
     if (body.indexOf('too little or too many attachments') > -1) {
       return {
         type: 'bad-body' as const,
-        value: 'Instagram carousel should have between 2 and 10 media attachments',
-      }
+        value:
+          'Instagram carousel should have between 2 and 10 media attachments',
+      };
     }
 
     if (body.indexOf('2207027') > -1) {
@@ -753,6 +755,7 @@ export class InstagramProvider
               : 'carousel',
           containers: medias,
           message: firstPost?.message || '',
+          receipts: [],
         },
       },
     ];
@@ -766,6 +769,13 @@ export class InstagramProvider
       containers: string[];
       message?: string;
       carouselId?: string;
+      receipts?: Array<{
+        slideIndex: number;
+        providerId: string;
+        releaseUrl: string;
+        providerContainerId?: string;
+        recovered?: boolean;
+      }>;
     },
     integration: Integration
   ): Promise<PendingCheckResponse> {
@@ -797,7 +807,8 @@ export class InstagramProvider
       return { status: 'ready', pendingData };
     }
 
-    for (const containerId of pendingData.containers) {
+    const receipts = [...(pendingData.receipts || [])];
+    for (const [slideIndex, containerId] of pendingData.containers.entries()) {
       const status = await this.igContainerStatus(
         containerId,
         checkToken,
@@ -818,10 +829,25 @@ export class InstagramProvider
             releaseURL: `https://www.instagram.com/${integration.profile}`,
           };
         }
+        if (
+          pendingData.postType === 'stories' &&
+          !receipts.some((item) => item.slideIndex === slideIndex)
+        ) {
+          receipts.push({
+            slideIndex,
+            providerId: containerId,
+            providerContainerId: containerId,
+            releaseUrl: `https://www.instagram.com/${integration.profile}`,
+            recovered: true,
+          });
+        }
       }
     }
 
-    return { status: 'ready', pendingData };
+    return {
+      status: 'ready',
+      pendingData: { ...pendingData, receipts },
+    };
   }
 
   override async finalizePost(
@@ -832,6 +858,13 @@ export class InstagramProvider
       containers: string[];
       message?: string;
       carouselId?: string;
+      receipts?: Array<{
+        slideIndex: number;
+        providerId: string;
+        releaseUrl: string;
+        providerContainerId?: string;
+        recovered?: boolean;
+      }>;
     },
     integration: Integration
   ): Promise<PendingCheckResponse> {
@@ -840,41 +873,58 @@ export class InstagramProvider
     const igId = integration.internalId;
 
     if (pendingData.postType === 'stories') {
-      // Stories don't support carousels - publish each media as a separate
-      // story, skipping containers a previous (crashed) run already published
-      let lastMediaId = '';
-      for (const mediaCreationId of pendingData.containers) {
-        const status = await this.igContainerStatus(
-          mediaCreationId,
-          checkToken,
-          pendingData.type
-        );
-        if (status === 'PUBLISHED') {
-          continue;
-        }
+      // Meta represents a sequence as ordered individual Story publishes.
+      // Publish one slide per workflow step so the ordered receipt list is
+      // committed durably before the next irreversible mutation.
+      const receipts = [...(pendingData.receipts || [])];
+      const slideIndex = pendingData.containers.findIndex(
+        (_, index) => !receipts.some((item) => item.slideIndex === index)
+      );
+      if (slideIndex === -1) {
+        const last = receipts
+          .slice()
+          .sort((a, b) => a.slideIndex - b.slideIndex)
+          .at(-1)!;
+        return {
+          status: 'completed',
+          postId: last.providerId,
+          releaseURL: last.releaseUrl,
+          receipts,
+        };
+      }
 
-        const { id: mediaId } = await (
-          await this.fetch(
-            `https://${pendingData.type}/v20.0/${igId}/media_publish?creation_id=${mediaCreationId}&access_token=${accessToken}&field=id`,
-            {
-              method: 'POST',
-            }
-          )
-        ).json();
-        lastMediaId = mediaId;
+      const mediaCreationId = pendingData.containers[slideIndex];
+      const { id: mediaId } = await (
+        await this.fetch(
+          `https://${pendingData.type}/v20.0/${igId}/media_publish?creation_id=${mediaCreationId}&access_token=${accessToken}&field=id`,
+          { method: 'POST' }
+        )
+      ).json();
+      const releaseUrl = await this.igPermalink(
+        mediaId,
+        checkToken,
+        pendingData.type,
+        integration
+      );
+      receipts.push({
+        slideIndex,
+        providerId: mediaId,
+        providerContainerId: mediaCreationId,
+        releaseUrl,
+      });
+
+      if (receipts.length < pendingData.containers.length) {
+        return {
+          status: 'pending',
+          pendingData: { ...pendingData, receipts },
+        };
       }
 
       return {
         status: 'completed',
-        postId: lastMediaId || pendingData.containers.at(-1)!,
-        releaseURL: !lastMediaId
-          ? `https://www.instagram.com/${integration.profile}`
-          : await this.igPermalink(
-              lastMediaId,
-              checkToken,
-              pendingData.type,
-              integration
-            ),
+        postId: mediaId,
+        releaseURL: releaseUrl,
+        receipts,
       };
     }
 
@@ -884,7 +934,9 @@ export class InstagramProvider
       // re-running this is safe)
       const { id: containerId } = await (
         await this.fetch(
-          `https://${pendingData.type}/v20.0/${igId}/media?caption=${encodeURIComponent(
+          `https://${
+            pendingData.type
+          }/v20.0/${igId}/media?caption=${encodeURIComponent(
             pendingData.message || ''
           )}&media_type=CAROUSEL&children=${encodeURIComponent(
             pendingData.containers.join(',')

@@ -113,7 +113,7 @@ export async function postWorkflowV107(input: PostWorkflowV107Input) {
     await sleep(scheduledFor.getTime() - Date.now());
   }
   await beginRenderPublishing(input.organizationId, occurrence.occurrenceId);
-  await executeChild(postWorkflowV106, {
+  const delivery = await executeChild(postWorkflowV106, {
     workflowId: `delivery_${occurrence.occurrenceId}`,
     args: [
       {
@@ -125,7 +125,11 @@ export async function postWorkflowV107(input: PostWorkflowV107Input) {
       },
     ],
   });
-  await completeRenderOccurrence(input.organizationId, occurrence.occurrenceId);
+  await completeRenderOccurrence(
+    input.organizationId,
+    occurrence.occurrenceId,
+    delivery && typeof delivery === 'object' ? delivery.receipts || [] : []
+  );
 
   if (post.intervalInDays) {
     const nextScheduledFor = new Date(

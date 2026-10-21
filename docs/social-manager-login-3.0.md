@@ -14,6 +14,19 @@ successor container, customer deployment or production release has been qualifie
 
 ## Customer branding
 
+The server runtime must receive an **absolute** `NEXT_PUBLIC_BACKEND_URL`.
+Nest initializes the MCP module with `new URL('/mcp-oauth', base)`, so a runtime
+value of `/api` raises `TypeError: Invalid URL` before the backend becomes ready.
+The frontend may still be compiled with `/api` for same-origin requests; that
+compiled client setting does not replace the server runtime requirement.
+
+For the assigned private QA origin the runtime value is
+`http://127.0.0.1:25428/api`. Customer production installations must supply their
+own absolute HTTPS API URL. The customer distribution Compose already provides
+an absolute loopback URL using its assigned port; preserve it when applying
+the login branding overlay. This configuration correction requires no image
+rebuild, schema migration, credential reset or dependency download.
+
 Deployment supplies `HAPPYM_APPLIANCE_CUSTOMER_NAME` and the same-origin PNG
 path `HAPPYM_APPLIANCE_CUSTOMER_LOGO_URL`, for example `/brand/customer-logo.png`.
 Mount the actual customer asset read-only into

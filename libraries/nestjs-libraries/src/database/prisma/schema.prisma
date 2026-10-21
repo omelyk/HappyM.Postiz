@@ -44,6 +44,7 @@ model Organization {
   oauthApp                    OAuthApp[]
   oauthAuthorizations         OAuthAuthorization[]
   prePublishRenderOccurrences PrePublishRenderOccurrence[]
+  editorialScheduleIntents    EditorialScheduleIntent[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -433,6 +434,7 @@ model Post {
   submittedForOrganization   Organization?                @relation("submittedForOrg", fields: [submittedForOrganizationId], references: [id])
   tags                       TagsPosts[]
   renderOccurrences          PrePublishRenderOccurrence[]
+  editorialScheduleIntent    EditorialScheduleIntent?
 
   @@index([group])
   @@index([deletedAt])
@@ -461,6 +463,7 @@ enum PrePublishRenderStatus {
   FAILED
   RENDER_TIMED_OUT
   CANCELLED
+  SIMULATED
 }
 
 model PrePublishRenderOccurrence {
@@ -491,12 +494,84 @@ model PrePublishRenderOccurrence {
   organization         Organization           @relation(fields: [organizationId], references: [id])
   post                 Post                   @relation(fields: [postId], references: [id])
   integration          Integration            @relation(fields: [integrationId], references: [id])
+  syntheticReceipts    SyntheticDeliveryReceipt[]
+  syntheticEvents      SyntheticDeliveryEvent[]
 
   @@unique([postId, sequence])
   @@index([organizationId, status])
   @@index([organizationId, scheduledFor])
   @@index([integrationId])
   @@index([leaseExpiresAt])
+}
+
+// TEST-only synthetic outcomes, never a real provider publication receipt.
+model SyntheticDeliveryReceipt {
+  scopeKey           String @db.Char(64)
+  slideIndex         Int
+  clientId           String
+  environmentId      String
+  deploymentId       String
+  installationId     String
+  organizationId     String
+  integrationId      String
+  postId             String
+  occurrenceId       String
+  bodyHash           String @db.Char(64)
+  syntheticReceiptId String @unique
+  createdAt          DateTime @default(now())
+  occurrence         PrePublishRenderOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([scopeKey, slideIndex])
+  @@index([organizationId, postId, occurrenceId])
+}
+
+model SyntheticDeliveryEvent {
+  scopeKey       String @db.Char(64)
+  ordinal        Int
+  clientId       String
+  environmentId  String
+  deploymentId   String
+  installationId String
+  organizationId String
+  integrationId  String
+  postId         String
+  occurrenceId   String
+  bodyHash       String @db.Char(64)
+  kind           String
+  slideIndex     Int?
+  createdAt      DateTime @default(now())
+  occurrence     PrePublishRenderOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([scopeKey, ordinal])
+  @@index([organizationId, postId, occurrenceId])
+}
+
+// Additive schedule acceptance journal. Not a provider publish receipt.
+model EditorialScheduleIntent {
+  organizationId          String
+  intentId                String
+  payloadHash             String
+  payloadJson             String
+  commandId               String
+  crmOccurrenceId         String
+  revisionId              String
+  bindingKey              String
+  postId                  String?      @unique
+  state                   String       @default("committed")
+  linksJson               String
+  dispatchState           String       @default("pending")
+  dispatchLeaseOwner      String?
+  dispatchLeaseExpiresAt  DateTime?
+  dispatchFence           Int          @default(0)
+  dispatchedAt            DateTime?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  organization            Organization @relation(fields: [organizationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  post                    Post?        @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([organizationId, intentId])
+  @@index([state, dispatchState, dispatchLeaseExpiresAt, createdAt], map: "EditorialScheduleIntent_state_dispatchState_lease_created_idx")
+  @@index([organizationId, commandId])
 }
 
 model Notifications {
@@ -959,6 +1034,7 @@ enum State {
   PUBLISHED
   ERROR
   DRAFT
+  SIMULATED
 }
 
 enum SubscriptionTier {

@@ -7,6 +7,7 @@ module.exports = {
     '<rootDir>/src/public-api/**/*.spec.ts',
   ],
   transform: {
+    "[/\\\\]node_modules[/\\\\](?:nostr-tools|nostr-wasm|@noble[/\\\\](?:ciphers|curves|hashes)|@scure[/\\\\](?:base|bip32|bip39))[/\\\\].+\\.[cm]?js$": '<rootDir>/jest.happym-esm-transform.cjs',
     '^.+\\.ts$': [
       'ts-jest',
       {
@@ -15,6 +16,11 @@ module.exports = {
       },
     ],
   },
+  // pnpm real paths contain a second node_modules segment.
+  transformIgnorePatterns: [
+    "[/\\\\]node_modules[/\\\\](?!\\.pnpm[/\\\\]|(?:nostr-tools|nostr-wasm|@noble[/\\\\](?:ciphers|curves|hashes)|@scure[/\\\\](?:base|bip32|bip39))[/\\\\])",
+    '\\.pnp\\.[^\\/]+$',
+  ],
   moduleNameMapper: {
     '^@gitroom/backend/(.*)$': '<rootDir>/src/$1',
     '^@gitroom/helpers/(.*)$': '<rootDir>/../../libraries/helpers/src/$1',

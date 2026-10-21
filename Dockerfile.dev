@@ -38,4 +38,4 @@ RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=6 \
   CMD node -e "fetch('http://127.0.0.1:5000/api/internal/happym/appliance/health/').then(async r=>{const b=await r.json().catch(()=>({}));process.exit(r.ok&&b.ready===true?0:1)}).catch(()=>process.exit(1))"
 
-CMD ["sh", "-c", "nginx && pnpm run prisma-db-push && exec pm2-runtime start var/docker/ecosystem.config.cjs"]
+CMD ["sh", "-c", "nginx && exec pm2-runtime start var/docker/ecosystem.config.cjs"]

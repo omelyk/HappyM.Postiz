@@ -2,7 +2,7 @@
 
 import React, { ReactNode, useCallback, useEffect } from 'react';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import localFont from 'next/font/local';
 const ModeComponent = dynamic(
   () => import('@gitroom/frontend/components/layout/mode.component'),
   {
@@ -45,10 +45,15 @@ import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component'
 import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
 import { HappyMSystemWorkspaceNotice } from '@gitroom/frontend/components/happym-appliance/happym.system-workspace.notice';
 
-const jakartaSans = Plus_Jakarta_Sans({
-  weight: ['600', '500', '700'],
-  style: ['normal', 'italic'],
-  subsets: ['latin'],
+const jakartaSans = localFont({
+  src: [
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '500', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '600', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '700', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '500', style: 'italic' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '600', style: 'italic' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '700', style: 'italic' },
+  ],
 });
 
 export const LayoutComponent = ({ children }: { children: ReactNode }) => {

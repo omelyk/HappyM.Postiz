@@ -1,3 +1,8 @@
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { PublicAttachRenderedDto } from './dtos/public.prepublish-render.dto';
+import { PostPayloadValidationService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-payload-validation.service';
+import { FacebookProvider } from '@gitroom/nestjs-libraries/integrations/social/facebook.provider';
 import {
   computeRenderContentHash,
   PrePublishRenderError,
@@ -104,7 +109,7 @@ class MemoryPrisma {
     this.integration = {
       findFirst: async ({ where }: any) =>
         where.id === 'integration-1' && where.organizationId === 'org-a'
-          ? { providerIdentifier: this.providerIdentifier }
+          ? { id: 'integration-1', name: 'Synthetic', additionalSettings: '[]', providerIdentifier: this.providerIdentifier }
           : null,
     };
   }
@@ -133,6 +138,7 @@ describe('PrePublishRenderService durable gate', () => {
   };
   let db: MemoryPrisma;
   let service: PrePublishRenderService;
+  let validation: { validate: jest.Mock };
 
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(now);
@@ -157,7 +163,8 @@ describe('PrePublishRenderService durable gate', () => {
       path: 'rendered/video.mp4',
       deletedAt: null,
     });
-    service = new PrePublishRenderService(db as any);
+    validation = { validate: jest.fn().mockResolvedValue({ valid: true, errors: true, emptyContent: false, tooLong: false }) };
+    service = new PrePublishRenderService(db as any, validation as any);
   });
 
   afterEach(() => jest.useRealTimers());
@@ -210,7 +217,7 @@ describe('PrePublishRenderService durable gate', () => {
     );
     jest.setSystemTime(new Date(now.getTime() + 61_000));
 
-    const restarted = new PrePublishRenderService(db as any);
+    const restarted = new PrePublishRenderService(db as any, validation as any);
     await expect(
       restarted.workflowState('org-a', occurrence.occurrenceId)
     ).resolves.toEqual({ status: 'RenderTimedOut' });
@@ -240,6 +247,7 @@ describe('PrePublishRenderService durable gate', () => {
     const targets: RenderTarget[] = [
       {
         integrationId: 'integration-1',
+        contentMode: 'media',
         channel: 'youtube',
         caption: 'Rendered caption',
         media: [{ mediaId: 'media-1', kind: 'video', mime: 'video/mp4' }],
@@ -331,6 +339,7 @@ describe('PrePublishRenderService durable gate', () => {
     const targets: RenderTarget[] = [
       {
         integrationId: 'integration-1',
+        contentMode: 'media',
         channel: 'instagram',
         caption: '',
         publishMode: 'story_sequence',
@@ -403,6 +412,7 @@ describe('PrePublishRenderService durable gate', () => {
     const targets: RenderTarget[] = [
       {
         integrationId: 'integration-1',
+        contentMode: 'media',
         channel: 'youtube',
         caption: 'Unsupported Story sequence',
         publishMode: 'story_sequence',
@@ -448,6 +458,7 @@ describe('PrePublishRenderService durable gate', () => {
     const targets: RenderTarget[] = [
       {
         integrationId: 'integration-1',
+        contentMode: 'media',
         channel: 'instagram',
         caption: 'Legacy single Story',
         media: [{ mediaId: 'media-1', kind: 'image', mime: 'image/png' }],
@@ -491,6 +502,7 @@ describe('PrePublishRenderService durable gate', () => {
       const targets: RenderTarget[] = [
         {
           integrationId: 'integration-1',
+          contentMode: 'media',
           channel: 'youtube',
           caption: `Occurrence ${sequence}`,
           media: [{ mediaId: 'media-1', kind: 'video', mime: 'video/mp4' }],
@@ -541,5 +553,98 @@ describe('PrePublishRenderService durable gate', () => {
     ).rejects.toMatchObject({
       reasonCode: 'PublishBlockedNoRender',
     });
+  });
+
+  async function textAttachment(change: (target: any) => void = () => {}) {
+    db.providerIdentifier = 'facebook';
+    const occurrence = await awaiting();
+    const claim = await service.claim('org-a', occurrence.occurrenceId, 'text-worker', 'text-claim', 300);
+    const target: RenderTarget = { integrationId: 'integration-1', channel: 'facebook',
+      contentMode: 'text_only', caption: 'Caffè pronto <ok>', media: [] };
+    change(target);
+    const input = { renderToken: claim.renderToken, correlation, targets: [target],
+      renderedAtUtc: now.toISOString(), contentHash: '' };
+    input.contentHash = computeRenderContentHash({ occurrenceId: occurrence.occurrenceId, correlation: input.correlation, targets: input.targets, renderedAtUtc: input.renderedAtUtc });
+    return { occurrence, input };
+  }
+
+  it('v3 text-only feed validates the native provider before Ready, stores no media, and replays attach', async () => {
+    const facebook = new FacebookProvider();
+    const providerCheck = jest.spyOn(facebook, 'checkValidity');
+    service = new PrePublishRenderService(db as any,
+      new PostPayloadValidationService({ getSocialIntegration: () => facebook } as any));
+    const { occurrence, input } = await textAttachment();
+    const ready = await service.attach('org-a', occurrence.occurrenceId, 'text-attach', input);
+    expect(providerCheck).toHaveBeenCalledWith([[]], {}, []);
+    expect(ready.status).toBe('ReadyToPublish');
+    expect(db.posts[0].content).toBe('Caffè pronto <ok>');
+    expect(JSON.parse(db.posts[0].image)).toEqual([]);
+    const replay = await service.attach('org-a', occurrence.occurrenceId, 'text-attach', input);
+    expect(replay.status).toBe('ReadyToPublish');
+    expect(providerCheck).toHaveBeenCalledTimes(1);
+    await expect(service.attach('org-a', occurrence.occurrenceId, 'text-attach', {
+      ...input, targets: [{ ...input.targets[0], caption: 'altered while keeping the old hash' }],
+    })).rejects.toMatchObject({ reasonCode: 'RenderPayloadInvalid' });
+  });
+
+  it.each(['missing-mode', 'unknown-mode', 'whitespace', 'media', 'thumbnail', 'story', 'null-media', 'hash'])(
+    'v3 text-only rejects %s without opening Ready', async (changed) => {
+      const { occurrence, input } = await textAttachment((target) => {
+        if (changed === 'missing-mode') delete target.contentMode;
+        if (changed === 'unknown-mode') target.contentMode = 'legacy';
+        if (changed === 'whitespace') target.caption = '  ';
+        if (changed === 'media') target.media = [{ mediaId: 'media-1', kind: 'video', mime: 'video/mp4' }];
+        if (changed === 'thumbnail') target.extras = { thumbnailMediaId: 'media-1' };
+        if (changed === 'story') target.publishMode = 'story_sequence';
+        if (changed === 'null-media') target.media = null;
+      });
+      if (changed === 'hash') input.contentHash = 'sha256-foreign';
+      await expect(service.attach('org-a', occurrence.occurrenceId, 'text-attach', input))
+        .rejects.toMatchObject({ reasonCode: 'RenderPayloadInvalid' });
+      expect(db.occurrences[0].status).toBe('AWAITING_RENDER');
+      expect(validation.validate).not.toHaveBeenCalled();
+    });
+
+  it.each(['provider-media-required', 'settings', 'too-long', 'expired-during-validation'])(
+    'v3 provider validation rejects %s before post/Ready writes', async (changed) => {
+      const facebook = new FacebookProvider();
+      service = new PrePublishRenderService(db as any,
+        new PostPayloadValidationService({ getSocialIntegration: () => facebook } as any));
+      const { occurrence, input } = await textAttachment();
+      if (changed === 'provider-media-required') db.posts[0].settings = JSON.stringify({ post_type: 'story' });
+      if (changed === 'settings') db.posts[0].settings = JSON.stringify({ post_type: 'invalid' });
+      if (changed === 'too-long') { input.targets[0].caption = 'x'.repeat(63207);
+        input.contentHash = computeRenderContentHash({ occurrenceId: occurrence.occurrenceId, correlation: input.correlation, targets: input.targets, renderedAtUtc: input.renderedAtUtc }); }
+      if (changed === 'expired-during-validation') jest.spyOn(facebook, 'checkValidity').mockImplementation(async () => {
+        jest.setSystemTime(new Date(now.getTime() + 301_000)); return true as const;
+      });
+      await expect(service.attach('org-a', occurrence.occurrenceId, 'text-attach', input)).rejects.toMatchObject({
+        reasonCode: changed === 'expired-during-validation' ? 'RenderTimedOut' : 'RenderPayloadInvalid',
+      });
+      expect(db.posts[0].content).toBeUndefined();
+      expect(db.occurrences[0].status).toBe('AWAITING_RENDER');
+    });
+
+  it('v3 DTO permits exactly one explicit text target and refuses the malformed alternatives', async () => {
+    const { input } = await textAttachment();
+    expect(await validate(plainToInstance(PublicAttachRenderedDto, input))).toEqual([]);
+    for (const targets of [[], [input.targets[0], input.targets[0]], [{ ...input.targets[0], contentMode: undefined }],
+      [{ ...input.targets[0], contentMode: 'media', media: [] }], [{ ...input.targets[0], extras: { thumbnailMediaId: 'm' } }]]) {
+      expect((await validate(plainToInstance(PublicAttachRenderedDto, { ...input, targets }))).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('v3 canonical text Unicode and media digests match the SDK goldens and bind the mode', () => {
+    const base = { occurrenceId: 'occ-1', correlation: { crmSocialPostId: 'crm-1', snapshotId: 'snapshot-1', pharmacyGroupId: 'group-1' },
+      renderedAtUtc: '2026-08-26T08:00:00+00:00' };
+    const text: RenderTarget = { integrationId: 'integration-1', channel: 'facebook', contentMode: 'text_only', caption: 'Caffè pronto <ok>', media: [] };
+    expect(computeRenderContentHash({ ...base, targets: [text] }))
+      .toBe('sha256-f34d397f4d3b7d5fc787623725cfef6aafcc4bed131a11fb0cbf0c7f5dd545cd');
+    const media: RenderTarget = { integrationId: 'integration-1', channel: 'youtube', contentMode: 'media', caption: 'Ready caption',
+      media: [{ mediaId: 'media-1', kind: 'video', mime: 'video/mp4' }] };
+    expect(computeRenderContentHash({ ...base, targets: [media] }))
+      .toBe('sha256-bf381ad74fc1c555acfc9658df00d8a5732c57ed4bcc202e25d6ca5330695835');
+    expect(computeRenderContentHash({ ...base, targets: [{ ...text, contentMode: 'media' }] }))
+      .not.toBe(computeRenderContentHash({ ...base, targets: [text] }));
   });
 });

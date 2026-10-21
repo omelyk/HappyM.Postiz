@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { HappyMTestFixtureProvider } from './social/happym-test-fixture.provider';
+import { syntheticBinding } from '../database/prisma/synthetic-fixture/synthetic-fixture.service';
 
 import { Injectable } from '@nestjs/common';
 import { XProvider } from '@gitroom/nestjs-libraries/integrations/social/x.provider';
@@ -39,6 +41,8 @@ import { MeweProvider } from '@gitroom/nestjs-libraries/integrations/social/mewe
 import { TumblrProvider } from '@gitroom/nestjs-libraries/integrations/social/tumblr.provider';
 
 export const socialIntegrationList: Array<SocialAbstract & SocialProvider> = [
+  // Metadata only; all transport methods throw. Provision/delivery have separate TEST gates.
+  ...(() => { try { syntheticBinding(); return [new HappyMTestFixtureProvider()]; } catch { return []; } })(),
   new XProvider(),
   new LinkedinProvider(),
   new LinkedinPageProvider(),

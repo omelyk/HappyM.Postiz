@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  Headers,
   Post,
   Put,
   ServiceUnavailableException,
@@ -17,6 +18,7 @@ import {
   HappyMProviderConfigurationService,
   SetFacebookOAuthAppRequest,
 } from '@gitroom/backend/services/happym-appliance/happym.provider-configuration.service';
+import { HappyMActivationReadinessService } from '@gitroom/backend/services/happym-appliance/happym.activation-readiness.service';
 
 @ApiTags('HappyM Appliance')
 @Controller('/internal/happym/appliance/health')
@@ -37,7 +39,14 @@ export class HappyMApplianceHealthController {
 @ApiTags('HappyM Appliance')
 @Controller('/internal/happym/appliance')
 export class HappyMApplianceController {
-  constructor(private readonly appliance: HappyMApplianceService) {}
+  constructor(private readonly appliance: HappyMApplianceService,
+    private readonly activationReadiness: HappyMActivationReadinessService) {}
+
+  @Get('/activation-readiness')
+  @Header('Cache-Control', 'no-store')
+  activation(@Headers('x-happym-probe-nonce') nonce: unknown) {
+    return this.activationReadiness.observe(nonce);
+  }
 
   @Get('/linked')
   linked() {
@@ -52,6 +61,15 @@ export class HappyMApplianceController {
   @Post('/credentials/rotate')
   rotateCredentials() {
     return this.appliance.rotateCredentials();
+  }
+
+  // QA-only native TEST ingress. No browser/public credential DTO or ordinary
+  // consumer key fallback. The existing controller M2M middleware still applies.
+  @Post('/native-consumer/bootstrap')
+  @Header('Cache-Control', 'no-store')
+  bootstrapNativeConsumer(@Body() body: unknown,
+    @Headers('x-happym-native-fixture-authorization') credential: unknown) {
+    return this.appliance.bootstrapNativeConsumer(body, credential);
   }
 
   @Post('/organizations/ensure')

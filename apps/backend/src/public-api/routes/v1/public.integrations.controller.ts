@@ -1,3 +1,4 @@
+import { SOCIAL_MANAGER_RELEASE } from '@gitroom/helpers/social-manager/release';
 import {
   Body,
   Controller,
@@ -109,6 +110,7 @@ export class PublicIntegrationsController {
     return {
       product: 'HappyM.Postiz',
       apiVersion: '1',
+      applianceVersion: SOCIAL_MANAGER_RELEASE.version,
       upstreamVersion: process.env.POSTIZ_UPSTREAM_VERSION || '2.23.0',
       forkVersion: process.env.HAPPYM_POSTIZ_VERSION || '1.0.0-beta.9',
       capabilities: [

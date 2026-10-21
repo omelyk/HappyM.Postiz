@@ -6,6 +6,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { Provider } from '@prisma/client';
+import { Transform } from 'class-transformer';
 
 export class LoginUserDto {
   @IsString()
@@ -25,6 +26,9 @@ export class LoginUserDto {
 
   @IsEmail()
   @IsDefined()
+  @Transform(({ value }) => process.env.HAPPYM_APPLIANCE_MODE === 'true' &&
+    typeof value === 'string' && value.trim().toLowerCase() === 'superadmin'
+      ? 'superadmin@social-manager.local' : value)
   email: string;
 
   datafast_visitor_id: string;

@@ -11,6 +11,7 @@ import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/n
 import { ForgotReturnPasswordDto } from '@gitroom/nestjs-libraries/dtos/auth/forgot-return.password.dto';
 import { EmailService } from '@gitroom/nestjs-libraries/services/email.service';
 import { NewsletterService } from '@gitroom/nestjs-libraries/newsletter/newsletter.service';
+import { initialPasswordRequired, initialPasswordChallenge, localAdminAccessDisabled } from '@gitroom/nestjs-libraries/happym-appliance/happym.local-admin';
 
 @Injectable()
 export class AuthService {
@@ -90,6 +91,12 @@ export class AuthService {
         throw new Error('User is not activated');
       }
 
+      if (localAdminAccessDisabled(user)) throw new Error('Local administrator access is disabled');
+
+      if (initialPasswordRequired(user)) {
+        return { addedOrg: false, jwt: undefined, passwordChangeRequired: true,
+          changeToken: initialPasswordChallenge(user) };
+      }
       return { addedOrg: false, jwt: await this.jwt(user) };
     }
 

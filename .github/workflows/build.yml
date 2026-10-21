@@ -50,5 +50,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Verify Social Manager local administrator
+        run: pnpm exec jest --config apps/backend/jest.happym.config.cjs --runInBand --runTestsByPath apps/backend/src/services/happym-appliance/happym.local-admin.spec.ts
+
       - name: Build
         run: pnpm run build

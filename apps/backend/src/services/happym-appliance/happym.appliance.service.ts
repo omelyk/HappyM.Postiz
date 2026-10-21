@@ -16,6 +16,7 @@ import { requireSyntheticNativeCredential, syntheticBinding, syntheticIdentifier
 import { TemporalSearchAttributesReadiness } from '@gitroom/nestjs-libraries/temporal/temporal.register';
 import { happyMDevLoginHint } from '@gitroom/nestjs-libraries/happym-appliance/happym.dev-login';
 import { mastraStoreReadiness } from '@gitroom/nestjs-libraries/chat/mastra.readiness';
+import { ensureLocalAdmin } from './happym.local-admin.service';
 
 export type EnsureOrganizationRequest = {
   organizationId?: string;
@@ -490,6 +491,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       });
       await this.ensureAdminWorkspaceMemberships(demoUser.id);
     }
+    await ensureLocalAdmin(this.prisma);
     return { organizationId: withKey.id, apiKey: withKey.apiKey! };
   }
 

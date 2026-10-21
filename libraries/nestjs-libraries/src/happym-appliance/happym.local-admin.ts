@@ -1,5 +1,6 @@
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { BadRequestException } from '@nestjs/common';
 
 // Installation-local operator identity; unrelated to CRM/M2M credentials.
 export const LOCAL_ADMIN_ID = 'social-manager.local-superadmin';
@@ -34,7 +35,7 @@ export const initialPasswordRequired = (user: LocalAdminUser) =>
 export function validateLocalAdminPassword(password: unknown): asserts password is string {
   if (typeof password !== 'string' || password.length < 12 || password.length > 256 ||
       password.trim().toLowerCase() === LOCAL_ADMIN_INITIAL_PASSWORD) {
-    throw new Error('La nuova password deve contenere da 12 a 256 caratteri.');
+    throw new BadRequestException('La nuova password deve contenere da 12 a 256 caratteri.');
   }
 }
 

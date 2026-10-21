@@ -4,6 +4,8 @@ import {
   LOCAL_ADMIN_INITIAL_PASSWORD, validateLocalAdminPassword, verifyInitialPasswordChallenge,
 } from '@gitroom/nestjs-libraries/happym-appliance/happym.local-admin';
 import { ensureLocalAdmin, HappyMLocalAdminService } from './happym.local-admin.service';
+import { HappyMApplianceService } from './happym.appliance.service';
+import { UsersRepository } from '@gitroom/nestjs-libraries/database/prisma/users/users.repository';
 
 describe('Social Manager installation-local administrator', () => {
   const environment = { ...process.env };
@@ -132,5 +134,19 @@ describe('Social Manager installation-local administrator', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
     await expect(new HappyMLocalAdminService(prisma as never)
       .changeInitialPassword('unused', 'operator-chosen-password-123')).rejects.toThrow();
+  });
+
+  it('keeps CRM user provisioning away from the installation-local identity', async () => {
+    const prisma = { organization: { findUnique: jest.fn() }, user: { update: jest.fn() } };
+    const service = new HappyMApplianceService(prisma as never, { snapshot: { ready: true } } as never);
+    await expect(service.ensureUser({ organizationId: 'customer-org', userId: LOCAL_ADMIN_ID, role: 'USER' })).rejects.toThrow();
+    expect(prisma.organization.findUnique).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('cannot transfer local administrator credentials into or out of another user', async () => {
+    const repository = new UsersRepository({} as never, {} as never);
+    await expect(repository.switchUserCredentials(LOCAL_ADMIN_ID, 'other-user')).rejects.toThrow();
+    await expect(repository.switchUserCredentials('other-user', LOCAL_ADMIN_ID)).rejects.toThrow();
   });
 });

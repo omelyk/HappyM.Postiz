@@ -17,6 +17,7 @@ import { TemporalSearchAttributesReadiness } from '@gitroom/nestjs-libraries/tem
 import { happyMDevLoginHint } from '@gitroom/nestjs-libraries/happym-appliance/happym.dev-login';
 import { mastraStoreReadiness } from '@gitroom/nestjs-libraries/chat/mastra.readiness';
 import { ensureLocalAdmin } from './happym.local-admin.service';
+import { LOCAL_ADMIN_ID } from '@gitroom/nestjs-libraries/happym-appliance/happym.local-admin';
 
 export type EnsureOrganizationRequest = {
   organizationId?: string;
@@ -310,6 +311,9 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       'organizationId'
     );
     const userId = this.identifier(body.userId, 'userId');
+    if (userId === LOCAL_ADMIN_ID) {
+      throw new ConflictException('The installation-local administrator is not a CRM-managed user');
+    }
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: { id: true },

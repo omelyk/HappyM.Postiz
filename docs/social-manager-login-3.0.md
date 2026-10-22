@@ -5,7 +5,7 @@ customer identity and copyright footer. Original licenses and upstream notices
 remain in the source distribution. The login links to that source and license.
 The public `/brand/` asset directory must be accessible before authentication.
 
-The header uses **3.0.0 :.: 2.23.0**. The first is the commercial appliance
+The Source successor header uses **3.0.1 :.: 2.23.0**. The first is the commercial appliance
 version, distinct from API/SDK contract versions. The second is the documented
 upstream baseline tag `upstream-baseline-v2.23.0`, peeled commit
 `1e4c8dd5c4f70c4d0abd01e23cc42d5b533d1ab9`. The inherited `version.txt`
@@ -68,6 +68,40 @@ The independent account does not replace or rotate service/M2M credentials,
 the existing protected installation administrator, or local demo credentials.
 Installing this source into an existing appliance is a runtime mutation: the
 runtime owner must schedule it after ongoing database work.
+
+## Appliance administration and common presentation: 3.0.1 Source delta
+
+The real installation SuperAdmin receives the original settings component,
+including its normal subscription and service-availability gates. Presentation
+requires both `isSuperAdmin=true` and the current organization role `SUPERADMIN`
+from authenticated `/user/self`, with a current organization. Auth middleware
+already re-resolves the database user and enabled organization membership.
+An organization administrator or member is not promoted; their existing
+CRM-managed appliance settings landing remains. Backend authorization, tenant
+selection, API keys, credentials and licensed/hosted-only features are unchanged.
+The original sidebar menu is retained; billing-only links still require billing.
+
+The appliance root uses the light palette and white workspace, calendar,
+settings and dialogs. Only its navigation sidebar uses the dark palette. The
+appliance does not mount the dark-mode toggle, so an old theme cookie cannot
+switch the entire workspace back to dark. Header, table and form spacing is
+compact. Shared dialogs stay within the viewport; standard dialogs keep their
+title outside the scrolling body. Requested dialog maximum widths are capped
+to the viewport. These styles are scoped to the appliance root and do not change
+the original hosted product or the CRM embedded root. The sidebar is in the
+normal layout flow, avoiding the original SuperAdmin-only fixed-width overlap.
+
+The `happym-test-fixture` icon is an unchanged copy of the bundled Social Manager
+64px icon under the existing platform-image path. The provider retains its
+`[SIMULAZIONE]` name and cannot impersonate a real external social network. The
+shared icon path fixes its missing badge in calendar, channel and selector views
+without changing delivery, provider permissions or fixture records.
+
+This delta is Source-only. The qualified local 3.0.0 image and its passed login,
+restart and synthetic-engine evidence are preserved. Application/build of 3.0.1
+waits until Root closes the current CRM editorial workflow and assigns a new
+finite window. No new schema, package dependency, download or secret is required.
+The graphics editor and CRM ApplicationStyle/KitStyle remain outside this work.
 
 ## Verification scope
 

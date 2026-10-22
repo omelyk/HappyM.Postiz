@@ -53,5 +53,8 @@ jobs:
       - name: Verify Social Manager local administrator
         run: pnpm exec jest --config apps/backend/jest.happym.config.cjs --runInBand --runTestsByPath apps/backend/src/services/happym-appliance/happym.local-admin.spec.ts
 
+      - name: Verify appliance administration exposure
+        run: pnpm exec jest --config apps/frontend/jest.happym.config.cjs --runInBand --runTestsByPath apps/frontend/src/components/happym-appliance/happym.appliance.navigation.spec.ts --testNamePattern "appliance administrator exposure"
+
       - name: Build
         run: pnpm run build

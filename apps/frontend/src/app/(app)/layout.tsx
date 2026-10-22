@@ -2,6 +2,7 @@ import { SentryComponent } from '@gitroom/frontend/components/layout/sentry.comp
 
 export const dynamic = 'force-dynamic';
 import '../global.scss';
+import '../social-manager.scss';
 import 'react-tooltip/dist/react-tooltip.css';
 import '@copilotkit/react-ui/styles.css';
 import LayoutContext from '@gitroom/frontend/components/layout/layout.context';
@@ -79,7 +80,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </head>
       <ChangeDirClient />
       <body
-        className={clsx(jakartaSans.className, 'dark text-primary !bg-primary')}
+        className={clsx(
+          jakartaSans.className,
+          'text-primary !bg-primary',
+          applianceMode ? 'social-manager-appliance light' : 'dark'
+        )}
       >
         <VariableContextComponent
           storageProvider={

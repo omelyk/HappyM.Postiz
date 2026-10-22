@@ -4,7 +4,7 @@ module.exports = {
       name: 'backend',
       cwd: '/app/apps/backend',
       script: 'pnpm',
-      args: 'start',
+      args: 'start:appliance',
       autorestart: true,
       restart_delay: 2000,
       exp_backoff_restart_delay: 100,
@@ -26,7 +26,12 @@ module.exports = {
       name: 'orchestrator',
       cwd: '/app/apps/orchestrator',
       script: 'pnpm',
-      args: 'start',
+      args: 'start:appliance',
+      // Temporal builds every workflow bundle concurrently during bootstrap.
+      // Node 22.20 can abort in the Turboshaft/Turbofan compiler while that
+      // burst is running. Keep the worker on the interpreter/baseline tiers;
+      // its workload is I/O-bound and startup reliability matters more than
+      // speculative optimization.
       autorestart: true,
       restart_delay: 2000,
       max_restarts: 20,

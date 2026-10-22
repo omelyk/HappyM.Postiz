@@ -2,7 +2,7 @@
 
 import React, { ReactNode, useCallback, useEffect } from 'react';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import localFont from 'next/font/local';
 const ModeComponent = dynamic(
   () => import('@gitroom/frontend/components/layout/mode.component'),
   {
@@ -44,15 +44,22 @@ import { FirstBillingComponent } from '@gitroom/frontend/components/billing/firs
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
 import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
 import { HappyMSystemWorkspaceNotice } from '@gitroom/frontend/components/happym-appliance/happym.system-workspace.notice';
+import { isHappyMApplianceMode } from '@gitroom/frontend/components/happym-appliance/happym.appliance.branding';
 
-const jakartaSans = Plus_Jakarta_Sans({
-  weight: ['600', '500', '700'],
-  style: ['normal', 'italic'],
-  subsets: ['latin'],
+const jakartaSans = localFont({
+  src: [
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '500', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '600', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '700', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '500', style: 'italic' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '600', style: 'italic' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '700', style: 'italic' },
+  ],
 });
 
 export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   const fetch = useFetch();
+  const applianceMode = isHappyMApplianceMode();
 
   const { backendUrl, billingEnabled, isGeneral } = useVariables();
 
@@ -97,6 +104,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
             <NewSubscription />
             <ContinueProvider />
             <div
+              data-social-manager-shell={applianceMode ? '' : undefined}
               className={clsx(
                 'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]',
                 jakartaSans.className
@@ -108,14 +116,25 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
               ) : (
                 <>
                   <AnnouncementBanner />
-                  <div className="flex-1 flex gap-[8px]">
+                  <div className={clsx(
+                    'flex-1 flex gap-[8px]',
+                    applianceMode && 'min-h-0 min-w-0'
+                  )}>
                     <Support />
-                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px]">
+                    <div
+                      className={clsx(
+                        'flex flex-col bg-newBgColorInner w-[80px] rounded-[12px]',
+                        applianceMode && 'social-manager-sidebar dark shrink-0'
+                      )}
+                    >
                       <div
                         id="left-menu"
                         className={clsx(
-                          'fixed h-full w-[64px] start-[17px] flex flex-1 top-0',
-                          user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]'
+                          applianceMode
+                            ? 'flex min-h-0 w-full flex-1'
+                            : 'fixed h-full w-[64px] start-[17px] flex flex-1 top-0',
+                          !applianceMode && user?.admin &&
+                            'pt-[60px] max-h-[1000px]:w-[500px]'
                         )}
                       >
                         <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px]">
@@ -124,8 +143,14 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="flex bg-newBgColorInner h-[80px] px-[20px] items-center">
+                    <div className={clsx(
+                      'flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe',
+                      applianceMode && 'min-h-0 min-w-0'
+                    )}>
+                      <div
+                        data-social-manager-header={applianceMode ? '' : undefined}
+                        className="flex bg-newBgColorInner h-[80px] px-[20px] items-center"
+                      >
                         <div className="text-[24px] font-[600] flex flex-1">
                           <Title />
                         </div>
@@ -133,9 +158,11 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                           <StreakComponent />
                           <div className="w-[1px] h-[20px] bg-blockSeparator" />
                           <OrganizationSelector />
-                          <div className="hover:text-newTextColor">
-                            <ModeComponent />
-                          </div>
+                          {!applianceMode && (
+                            <div className="hover:text-newTextColor">
+                              <ModeComponent />
+                            </div>
+                          )}
                           <div className="w-[1px] h-[20px] bg-blockSeparator" />
                           <LanguageComponent />
                           <ChromeExtensionComponent />
@@ -145,7 +172,15 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         </div>
                       </div>
                       <HappyMSystemWorkspaceNotice />
-                      <div className="flex flex-1 gap-[1px]">{children}</div>
+                      <div
+                        data-social-manager-content={applianceMode ? '' : undefined}
+                        className={clsx(
+                          'flex flex-1 gap-[1px]',
+                          applianceMode && 'min-h-0 min-w-0'
+                        )}
+                      >
+                        {children}
+                      </div>
                     </div>
                   </div>
                 </>

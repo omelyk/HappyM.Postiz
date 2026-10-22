@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   OnApplicationBootstrap,
@@ -8,10 +10,14 @@ import {
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { PrismaService } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
-import { Provider, Role } from '@prisma/client';
+import { Prisma, Provider, Role } from '@prisma/client';
+import { createHash } from 'node:crypto';
+import { requireSyntheticNativeCredential, syntheticBinding, syntheticIdentifier } from '@gitroom/nestjs-libraries/database/prisma/synthetic-fixture/synthetic-fixture.service';
 import { TemporalSearchAttributesReadiness } from '@gitroom/nestjs-libraries/temporal/temporal.register';
 import { happyMDevLoginHint } from '@gitroom/nestjs-libraries/happym-appliance/happym.dev-login';
 import { mastraStoreReadiness } from '@gitroom/nestjs-libraries/chat/mastra.readiness';
+import { ensureLocalAdmin } from './happym.local-admin.service';
+import { LOCAL_ADMIN_ID } from '@gitroom/nestjs-libraries/happym-appliance/happym.local-admin';
 
 export type EnsureOrganizationRequest = {
   organizationId?: string;
@@ -149,6 +155,113 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     };
   }
 
+  /** A new QA-only contract, distinct from the legacy mutating ensure methods.
+   * The credential-bearing envelope belongs exclusively to the retained native
+   * RAM receiver. Never log, serialize into a public receipt, or persist it here. */
+  async bootstrapNativeConsumer(input: unknown, credential: unknown) {
+    let systemOrganizationId: string;
+    try { this.assertReady(); systemOrganizationId = this.configuration().systemOrganizationId; }
+    catch { throw new ServiceUnavailableException({ code: 'native_consumer_not_ready' }); }
+    const binding = syntheticBinding();
+    requireSyntheticNativeCredential(credential);
+    const object = (value: unknown, fields: string[]): value is Record<string, unknown> =>
+      !!value && typeof value === 'object' && !Array.isArray(value)
+      && Object.keys(value).sort().join(',') === [...fields].sort().join(',');
+    if (!object(input, ['binding', 'consumer', 'requestId', 'requireExisting'])
+      || !object(input.binding, ['clientId', 'applicationEnvironmentId', 'logicalDeploymentId', 'installationId'])
+      || !object(input.consumer, ['deploymentId', 'environment', 'tenantId', 'pharmacyId'])
+      || !syntheticIdentifier(input.requestId) || typeof input.requireExisting !== 'boolean') throw new BadRequestException({ code: 'native_consumer_input_invalid' });
+    const selectedBinding = input.binding, consumer = input.consumer;
+    if (Object.entries(binding).some(([key, value]) => selectedBinding[key] !== value))
+      throw new ForbiddenException({ code: 'native_consumer_binding_mismatch' });
+    if (consumer.environment !== 'test' || consumer.deploymentId !== binding.logicalDeploymentId
+      || typeof consumer.deploymentId !== 'string' || !/^[a-z0-9-]{1,64}$/.test(consumer.deploymentId)
+      || typeof consumer.tenantId !== 'string' || !/^[A-Za-z0-9_.:-]{1,100}$/.test(consumer.tenantId)
+      || typeof consumer.pharmacyId !== 'string' || !/^[A-Za-z0-9_.:-]{1,100}$/.test(consumer.pharmacyId))
+      throw new ForbiddenException({ code: 'native_consumer_scope_invalid' });
+    const scope = { deploymentId: consumer.deploymentId, environment: 'test' as const,
+      tenantId: consumer.tenantId, pharmacyId: consumer.pharmacyId };
+    const digest = createHash('sha256').update(JSON.stringify(['happym.postiz.consumer-workspace/v1',
+      scope.deploymentId, scope.environment, scope.tenantId, scope.pharmacyId]), 'utf8').digest('hex');
+    const organizationId = 'hm-' + digest, userId = 'sm.' + digest;
+    const email = digest + '@social-manager.local';
+    const current = () => {
+      if (JSON.stringify(syntheticBinding()) !== JSON.stringify(binding)
+        || this.configuration().systemOrganizationId !== systemOrganizationId)
+        throw new ServiceUnavailableException({ code: 'native_consumer_outcome_unknown' });
+      requireSyntheticNativeCredential(credential);
+    };
+    const conflict = (): never => { throw new ConflictException({ code: 'native_consumer_conflict' }); };
+    if (organizationId === systemOrganizationId) conflict();
+    const keyValid = (value: unknown): value is string => typeof value === 'string' && /^[!-~]{32,4096}$/.test(value)
+      && value !== process.env.HAPPYM_APPLIANCE_INTERNAL_CLIENT_SECRET && value !== process.env.HAPPYM_EMBED_CLIENT_SECRET
+      && value !== process.env.HAPPYM_TEST_FIXTURE_NATIVE_SECRET;
+    let envelope: { organizationId: string; userId: string; apiKey: string };
+    try {
+      envelope = await this.prisma.$transaction(async tx => {
+        current();
+        const system = await tx.organization.findUnique({ where: { id: systemOrganizationId },
+          select: { apiKey: true } });
+        current();
+        if (!system || !keyValid(system.apiKey)) conflict();
+        const organization = await tx.organization.findUnique({ where: { id: organizationId },
+          select: { id: true, name: true, apiKey: true, allowTrial: true, isTrailing: true } });
+        current();
+        const user = await tx.user.findUnique({ where: { id: userId },
+          select: { id: true, email: true, name: true, providerName: true, activated: true } });
+        current();
+        const emailOwner = await tx.user.findUnique({ where: { email_providerName: { email, providerName: Provider.LOCAL } },
+          select: { id: true } });
+        current();
+        const memberships = await tx.userOrganization.findMany({ where: { userId },
+          select: { userId: true, organizationId: true, role: true, disabled: true } });
+        current();
+        // Validate every existing identity before a create. Never silently
+        // reactivate, rename, change a role, replace a key, or rotate on replay.
+        if (input.requireExisting && (!organization || !user || memberships.length !== 1)
+          || organization && (organization.name !== organizationId || !keyValid(organization.apiKey) || organization.apiKey === system?.apiKey
+            || organization.allowTrial !== false || organization.isTrailing !== false)
+          || user && (user.email !== email || user.name !== organizationId || user.providerName !== Provider.LOCAL || !user.activated)
+          || emailOwner && emailOwner.id !== userId
+          || memberships.some(row => row.organizationId !== organizationId || row.role !== Role.USER || row.disabled)) conflict();
+        // apiKey has an index, not a unique constraint in the current schema.
+        // Check the candidate's existing owner inside this serializable boundary
+        // before any mutation; never adopt a key belonging to another organization.
+        const candidateKey = organization?.apiKey ?? AuthService.fixedEncryption(makeId(32));
+        if (!keyValid(candidateKey) || candidateKey === system.apiKey) conflict();
+        const otherOwner = await tx.organization.findFirst({
+          where: { apiKey: candidateKey, id: { not: organizationId } }, select: { id: true } });
+        current();
+        if (otherOwner) conflict();
+        const held = organization ?? await tx.organization.create({ data: {
+          id: organizationId, name: organizationId, allowTrial: false, isTrailing: false,
+          apiKey: candidateKey,
+          subscription: { create: { totalChannels: 1000000, subscriptionTier: 'ULTIMATE', isLifetime: true, period: 'YEARLY' } },
+        }, select: { id: true, apiKey: true } });
+        current();
+        if (!user) {
+          await tx.user.create({ data: { id: userId, email, name: organizationId,
+            providerName: Provider.LOCAL, password: AuthService.hashPassword(makeId(64)), activated: true, timezone: 0 }, select: { id: true } });
+          current();
+        }
+        if (memberships.length === 0) {
+          await tx.userOrganization.create({
+            data: { userId, organizationId, role: Role.USER, disabled: false }, select: { userId: true } });
+          current();
+        }
+        if (!keyValid(held.apiKey) || held.apiKey === system.apiKey) conflict();
+        return { organizationId, userId, apiKey: held.apiKey };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 1000, timeout: 5000 });
+      current();
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      // No database details or secret-bearing envelope in a public exception.
+      throw new ServiceUnavailableException({ code: 'native_consumer_outcome_unknown' });
+    }
+    return { contract: 'happym.native-consumer-bootstrap/v1' as const,
+      binding, consumer: scope, requestId: input.requestId, ...envelope };
+  }
+
   async ensureOrganization(body: EnsureOrganizationRequest) {
     this.assertReady();
     const config = this.configuration();
@@ -198,6 +311,9 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       'organizationId'
     );
     const userId = this.identifier(body.userId, 'userId');
+    if (userId === LOCAL_ADMIN_ID) {
+      throw new ConflictException('The installation-local administrator is not a CRM-managed user');
+    }
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: { id: true },
@@ -379,6 +495,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       });
       await this.ensureAdminWorkspaceMemberships(demoUser.id);
     }
+    await ensureLocalAdmin(this.prisma);
     return { organizationId: withKey.id, apiKey: withKey.apiKey! };
   }
 

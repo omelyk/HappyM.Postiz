@@ -58,8 +58,11 @@ import {
   HappyMProviderConfigurationController,
 } from '@gitroom/backend/api/routes/happym.appliance.controller';
 import { HappyMApplianceService } from '@gitroom/backend/services/happym-appliance/happym.appliance.service';
+import { HappyMLocalAdminService } from '@gitroom/backend/services/happym-appliance/happym.local-admin.service';
 import { HappyMApplianceMiddleware } from '@gitroom/backend/services/happym-appliance/happym.appliance.middleware';
 import { HappyMProviderConfigurationService } from '@gitroom/backend/services/happym-appliance/happym.provider-configuration.service';
+import { HappyMActivationReadinessService } from '@gitroom/backend/services/happym-appliance/happym.activation-readiness.service';
+import { HappyMSyntheticFixtureController } from './routes/happym.synthetic-fixture.controller';
 
 const authenticatedController = [
   UsersController,
@@ -97,6 +100,7 @@ const authenticatedController = [
     HappyMEmbedExchangeController,
     HappyMApplianceHealthController,
     HappyMApplianceController,
+    HappyMSyntheticFixtureController,
     HappyMProviderConfigurationController,
     ...authenticatedController,
   ],
@@ -121,8 +125,10 @@ const authenticatedController = [
     HappyMEmbedService,
     HappyMEmbedMiddleware,
     HappyMApplianceService,
+    HappyMLocalAdminService,
     HappyMApplianceMiddleware,
     HappyMProviderConfigurationService,
+    HappyMActivationReadinessService,
   ],
   get exports() {
     return [...this.imports, ...this.providers];
@@ -137,6 +143,7 @@ export class ApiModule implements NestModule {
       .apply(HappyMApplianceMiddleware)
       .forRoutes(
         HappyMApplianceController,
+        HappyMSyntheticFixtureController,
         HappyMProviderConfigurationController
       );
   }

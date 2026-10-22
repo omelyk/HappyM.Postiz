@@ -2,11 +2,12 @@ import { SentryComponent } from '@gitroom/frontend/components/layout/sentry.comp
 
 export const dynamic = 'force-dynamic';
 import '../global.scss';
+import '../social-manager.scss';
 import 'react-tooltip/dist/react-tooltip.css';
 import '@copilotkit/react-ui/styles.css';
 import LayoutContext from '@gitroom/frontend/components/layout/layout.context';
 import { ReactNode } from 'react';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import localFont from 'next/font/local';
 import PlausibleProvider from 'next-plausible';
 import clsx from 'clsx';
 import { VariableContextComponent } from '@gitroom/react/helpers/variable.context';
@@ -25,10 +26,13 @@ import { HtmlComponent } from '@gitroom/frontend/components/layout/html.componen
 import Script from 'next/script';
 import { ChangeDirClient } from '@gitroom/frontend/components/new-layout/change.dir.client';
 
-const jakartaSans = Plus_Jakarta_Sans({
-  weight: ['600', '500'],
-  style: ['normal', 'italic'],
-  subsets: ['latin'],
+const jakartaSans = localFont({
+  src: [
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '500', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '600', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '500', style: 'italic' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '600', style: 'italic' },
+  ],
 });
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -76,7 +80,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </head>
       <ChangeDirClient />
       <body
-        className={clsx(jakartaSans.className, 'dark text-primary !bg-primary')}
+        className={clsx(
+          jakartaSans.className,
+          'text-primary !bg-primary',
+          applianceMode ? 'social-manager-appliance light' : 'dark'
+        )}
       >
         <VariableContextComponent
           storageProvider={

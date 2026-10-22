@@ -115,7 +115,7 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       return {
         type: 'bad-body' as const,
         value: 'Invalid file',
-      }
+      };
     }
 
     if (body.indexOf('1404102') > -1) {
@@ -558,6 +558,7 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
             items,
             publishedCount: 0,
             lastPostId: '',
+            receipts: [],
           },
         },
       ];
@@ -573,6 +574,11 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       items: { kind: 'video' | 'photo'; mediaId: string }[];
       publishedCount: number;
       lastPostId: string;
+      receipts: Array<{
+        slideIndex: number;
+        providerId: string;
+        releaseUrl: string;
+      }>;
       attempting?: number | null;
       confirmed?: boolean;
     },
@@ -621,6 +627,11 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       items: { kind: 'video' | 'photo'; mediaId: string }[];
       publishedCount: number;
       lastPostId: string;
+      receipts: Array<{
+        slideIndex: number;
+        providerId: string;
+        releaseUrl: string;
+      }>;
       attempting?: number | null;
       confirmed?: boolean;
     },
@@ -658,6 +669,12 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     ).json();
 
     const publishedCount = pendingData.publishedCount + 1;
+    const receipt = {
+      slideIndex: pendingData.publishedCount,
+      providerId: storyPostId,
+      releaseUrl: `https://www.facebook.com/stories/${storyPostId}`,
+    };
+    const receipts = [...(pendingData.receipts || []), receipt];
 
     if (publishedCount < pendingData.items.length) {
       return {
@@ -666,6 +683,7 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
           ...pendingData,
           publishedCount,
           lastPostId: storyPostId,
+          receipts,
           attempting: null,
           confirmed: false,
         },
@@ -676,6 +694,7 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       status: 'completed',
       postId: storyPostId,
       releaseURL: `https://www.facebook.com/stories/${storyPostId}`,
+      receipts,
     };
   }
 

@@ -28,6 +28,7 @@ import { TumblrDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settin
 
 export type ProviderExtension<T extends string, M> = { __type: T } & M;
 export type AllProvidersSettings =
+  | ProviderExtension<'happym-test-fixture', None>
   | ProviderExtension<'reddit', RedditSettingsDto>
   | ProviderExtension<'lemmy', LemmySettingsDto>
   | ProviderExtension<'youtube', YoutubeSettingsDto>
@@ -90,6 +91,7 @@ export const allProviders = (setEmpty?: any) => {
     { value: GmbSettingsDto, name: 'gmb' },
     { value: FarcasterDto, name: 'wrapcast' },
     { value: FacebookDto, name: 'facebook' },
+    { value: setEmpty, name: 'happym-test-fixture' },
     { value: setEmpty, name: 'threads' },
     { value: setEmpty, name: 'mastodon' },
     { value: setEmpty, name: 'bluesky' },

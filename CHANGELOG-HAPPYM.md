@@ -1,5 +1,63 @@
 # HappyM change log
 
+## 1.0.0-beta.9 — Source candidate, not released
+
+- Breaking current attach contract `prepublish-render/v3`: required target contentMode text_only/media contributes to the canonical digest; existing Public API route and lease/idempotency protocol remain.
+- Text-only requires exactly one caption target and no media/thumbnail/story sequence. Media retains1..10 plus existing Story guards.
+- Provider settings/content/media validation is shared with ordinary post validation and runs before Ready inside the serializable attach transaction; no Temporal workflow or activity ABI changes.
+- Source tests/goldens added; no build, tests, package/image release or runtime/UAT qualification claimed by this Source delivery.
+
+## Current schedule intent source candidate — 2026-10-17
+
+- Source review successor: dispatch acknowledgement checks lease expiry atomically in SQL with the database clock; normalized comment expansion is bounded again before the transaction. Two additional Source cases are prepared, without execution.
+
+- Added authenticated, organization-scoped schedule intents with an atomic post/render/acceptance transaction and exact payload replay.
+- Added cancellation tombstones and a database lease/fence dispatcher that ensures existing workflows without termination. Generic missing-post recovery excludes intent-owned posts.
+- Added a current schema candidate and prepared Source cases. Activation defaults off; no build, migration, test, provider or HA qualification is claimed for this candidate.
+
+
+## 1.0.0-beta.8 - 2026-09-02
+
+Story-Sequence: Warning
+- Contract version: `prepublish-render/v2`; breaking: no; `prepublish-render/v1` remains advertised and unchanged.
+- Gate enforce: yes. Added the optional `targets[0].publishMode = "story_sequence"` contract for 2–10 ordered Story slides on Facebook and Instagram providers.
+- Persisted a deterministic bundle receipt with one ordered child receipt per provider Story and exposed it from occurrence get/list responses and the OpenAPI schema.
+- Kept one-media Story attach unchanged, retained content-hash idempotency, rejected unsupported LinkedIn/WhatsApp Story targets, and required MP4 for video slides.
+- Hardened Instagram sequences to publish one slide per durable Temporal step and normalize PNG images to JPEG before provider delivery.
+- Test evidence: durable gate/receipt/provider Jest suites 11/11, complete HappyM backend suite, backend/orchestrator production builds, Postiz.NET and HappyM.Pharma.Postiz.* .NET 8/9 suites.
+- Warning: Meta models a sequence as ordered individual Story objects, not an atomic provider bundle. Live Facebook/Instagram UAT remains required; video-duration validation remains provider-side because Media rows do not contain duration metadata.
+
+## 1.0.0-beta.8 - 2026-09-02
+
+Story-Sequence: Warning
+- Contract version: `prepublish-render/v2`; breaking: no; `prepublish-render/v1` remains advertised and unchanged.
+- Gate enforce: yes. Added the optional `targets[0].publishMode = "story_sequence"` contract for 2–10 ordered Story slides on Facebook and Instagram providers.
+- Persisted a deterministic bundle receipt with one ordered child receipt per provider Story and exposed it from occurrence get/list responses and the OpenAPI schema.
+- Kept one-media Story attach unchanged, retained content-hash idempotency, rejected unsupported LinkedIn/WhatsApp Story targets, and required MP4 for video slides.
+- Hardened Instagram sequences to publish one slide per durable Temporal step and normalize PNG images to JPEG before provider delivery.
+- Test evidence: durable gate/receipt/provider Jest suites 10/10, complete HappyM backend suite, backend/orchestrator production builds, Postiz.NET and HappyM.Pharma.Postiz.* .NET 8/9 suites.
+- Warning: Meta models a sequence as ordered individual Story objects, not an atomic provider bundle. Live Facebook/Instagram UAT remains required; video-duration validation remains provider-side because Media rows do not contain duration metadata.
+
+## 1.0.0-beta.7 - 2026-08-31
+
+Post-Settings schema: Warning
+- Contract version: `post-comments/v1`; breaking: no.
+- Declared `Settings.firstComment` as the canonical string key for the first public comment below a post and `Settings.comments` as the ordered extra-comment array.
+- Accepted extra comment strings or `{ content, delay }` objects, where `delay` is a non-negative integer number of minutes after the previous item.
+- Normalized the public settings keys into the engine-native `posts[].value[1..]` representation before DTO validation, while preserving all unrelated provider settings and CRM `validUntil` metadata.
+- Added provider-aware `Output.postComments` discovery to integration settings; Facebook and Instagram report native comment support.
+- Evidence: public comment normalization/contract/provider suite 5/5 and typed SDK suite on .NET 8/9. Joint HappyM.Pharma Instagram/Facebook publication UAT remains required before production promotion.
+
+## 1.0.0-beta.6 - 2026-08-31
+
+Studio-Render-WebM-UAT-Fail: Warning
+- Breaking: no; the native YouTube publish and SDK contracts are unchanged.
+- Fixed local appliance media resolution when the database stores an absolute Social Manager `/uploads/...` URL, while preserving remote-storage URLs and rejecting path traversal.
+- Upgraded the appliance runtime to Node.js 22.23.1 and disabled the unstable optimizing compiler for backend/orchestrator build and runtime after reproducing the V8 `unreachable code` / `Illegal instruction` crash.
+- Reworked backend watchdog recovery to terminate the container cleanly after sustained failure instead of starting a competing PM2 daemon that could produce `EADDRINUSE` and an extended `nest_down` outage.
+- Evidence: media normalizer Jest suite 9/9, watchdog Node suite 2/2, complete appliance Docker build, healthy four-process runtime with zero restarts and no fatal/V8/address-conflict log signatures.
+- Joint HappyM.Pharma unlisted YouTube UAT remains required before production promotion; no external video was published by this release task.
+
 ## 1.0.0-beta.5 - 2026-08-26
 
 PrePublish-Render-Hook: Warning

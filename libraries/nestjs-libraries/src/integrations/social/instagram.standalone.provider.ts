@@ -27,6 +27,7 @@ export class InstagramStandaloneProvider
   identifier = 'instagram-standalone';
   name = 'Instagram\n(Standalone)';
   isBetweenSteps = false;
+  convertToJPEG = true;
   refreshCron = true;
   scopes = [
     'instagram_business_basic',
@@ -34,7 +35,7 @@ export class InstagramStandaloneProvider
     'instagram_business_manage_comments',
     'instagram_business_manage_insights',
   ];
-    override maxConcurrentJob = 200; // Instagram standalone has stricter limits
+  override maxConcurrentJob = 200; // Instagram standalone has stricter limits
   dto = InstagramDto;
 
   editor = 'normal' as const;
@@ -48,6 +49,9 @@ export class InstagramStandaloneProvider
   ): Promise<string | true> {
     if (!firstPost?.length) {
       return 'Should have at least one media';
+    }
+    if (firstPost.length > 10) {
+      return 'Instagram only supports up to 10 media attachments';
     }
     if (this.assetBoolean(settings?.is_trial_reel)) {
       if ((firstPost?.length ?? 0) > 1) {
@@ -224,7 +228,11 @@ export class InstagramStandaloneProvider
     pendingData: any,
     integration: Integration
   ) {
-    return instagramProvider.finalizePost(accessToken, pendingData, integration);
+    return instagramProvider.finalizePost(
+      accessToken,
+      pendingData,
+      integration
+    );
   }
 
   async comment(

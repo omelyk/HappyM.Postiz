@@ -1,3 +1,4 @@
+import { PostPayloadValidationService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-payload-validation.service';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
@@ -11,6 +12,8 @@ export type RenderReasonCode =
   | 'PublishBlockedNoRender'
   | 'OccurrenceCancelled'
   | 'OccurrenceNotFound'
+  | 'StorySequenceInvalid'
+  | 'StorySequenceUnsupported'
   | 'TransientEngine';
 
 export class PrePublishRenderError extends Error {
@@ -34,8 +37,18 @@ export type RenderTarget = {
   integrationId: string;
   channel: string;
   caption: string;
+  contentMode: 'text_only' | 'media';
   media: Array<{ mediaId: string; kind: 'image' | 'video'; mime: string }>;
   extras?: { youtubeTitle?: string; thumbnailMediaId?: string };
+  publishMode?: 'story_sequence';
+};
+
+export type ProviderPublishReceipt = {
+  slideIndex: number;
+  providerId: string;
+  releaseUrl: string;
+  providerContainerId?: string;
+  recovered?: boolean;
 };
 
 export type AttachRenderedInput = {
@@ -56,6 +69,7 @@ const responseStatus = (status: PrePublishRenderStatus) =>
     FAILED: 'Failed',
     RENDER_TIMED_OUT: 'RenderTimedOut',
     CANCELLED: 'Cancelled',
+    SIMULATED: 'SimulatedPublished',
   }[status]);
 
 function canonicalize(value: unknown): string {
@@ -85,7 +99,10 @@ export function computeRenderContentHash(input: {
 
 @Injectable()
 export class PrePublishRenderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly payloadValidation: PostPayloadValidationService
+  ) {}
 
   private secret() {
     const secret =
@@ -128,6 +145,12 @@ export class PrePublishRenderService {
   }
 
   private view(occurrence: any) {
+    let publishReceipt = null;
+    try {
+      publishReceipt = occurrence.publishReceipt
+        ? JSON.parse(occurrence.publishReceipt)
+        : null;
+    } catch {}
     return {
       id: occurrence.id,
       occurrenceId: occurrence.id,
@@ -142,6 +165,7 @@ export class PrePublishRenderService {
       publishedAtUtc: occurrence.publishedAt,
       releaseId: occurrence.releaseId,
       releaseUrl: occurrence.releaseUrl,
+      publishReceipt,
       reasonCode: occurrence.failureReason,
     };
   }
@@ -199,6 +223,7 @@ export class PrePublishRenderService {
           Failed: 'FAILED',
           RenderTimedOut: 'RENDER_TIMED_OUT',
           Cancelled: 'CANCELLED',
+          SimulatedPublished: 'SIMULATED',
         }).find(([key]) => key === filters.status)?.[1] as
           | PrePublishRenderStatus
           | undefined)
@@ -357,10 +382,58 @@ export class PrePublishRenderService {
         'The render occurrence was not found.'
       );
     }
+    // Validate the current wire contract/hash even on an idempotent replay.
+    const target = input.targets?.[0];
+    if (
+      !Array.isArray(input.targets) || input.targets.length !== 1 || !target ||
+      target.integrationId !== occurrence.integrationId ||
+      typeof target.caption !== 'string' ||
+      (target.publishMode !== 'story_sequence' && !target.caption.trim()) ||
+      !Array.isArray(target.media) ||
+      !['text_only', 'media'].includes(target.contentMode) ||
+      (target.contentMode === 'text_only' &&
+        (!target.caption.trim() || target.media.length !== 0 ||
+          target.publishMode !== undefined || target.extras?.thumbnailMediaId !== undefined)) ||
+      (target.contentMode === 'media' && (target.media.length < 1 || target.media.length > 10)) ||
+      /\{\{\s*(?:ds_|env_)/i.test(target.caption) ||
+      target.media.some((item) => !item || typeof item.mediaId !== 'string' || !item.mediaId ||
+        !['image', 'video'].includes(item.kind) || typeof item.mime !== 'string' || !item.mime ||
+        /\.hmproj(?:$|[?#])/i.test(item.mediaId))
+    ) {
+      throw new PrePublishRenderError(
+        'RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+        'The rendered target is incomplete or unresolved.'
+      );
+    }
+    const renderedAt = new Date(input.renderedAtUtc);
+    if (
+      Number.isNaN(renderedAt.getTime()) ||
+      renderedAt.getTime() > Date.now() + 5 * 60 * 1000
+    ) {
+      throw new PrePublishRenderError(
+        'RenderPayloadInvalid',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'The rendered timestamp is invalid.'
+      );
+    }
+    const expectedHash = computeRenderContentHash({
+      occurrenceId,
+      correlation: input.correlation,
+      targets: input.targets,
+      renderedAtUtc: input.renderedAtUtc,
+    });
+    if (input.contentHash !== expectedHash) {
+      throw new PrePublishRenderError(
+        'RenderPayloadInvalid',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'The rendered content hash does not match the payload.'
+      );
+    }
+
     if (
       occurrence.attachIdempotencyKey === idempotencyKey &&
       occurrence.contentHash === input.contentHash &&
-      ['READY_TO_PUBLISH', 'PUBLISHING', 'PUBLISHED'].includes(
+      ['READY_TO_PUBLISH', 'PUBLISHING', 'PUBLISHED', 'SIMULATED'].includes(
         occurrence.status
       )
     ) {
@@ -400,48 +473,23 @@ export class PrePublishRenderService {
         'The render correlation does not match the occurrence.'
       );
     }
+    if (target.publishMode && target.publishMode !== 'story_sequence') {
+      throw new PrePublishRenderError(
+        'StorySequenceInvalid',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'The requested publish mode is invalid.'
+      );
+    }
     if (
-      input.targets?.length !== 1 ||
-      input.targets[0].integrationId !== occurrence.integrationId ||
-      !input.targets[0].caption?.trim() ||
-      !input.targets[0].media?.length ||
-      /\{\{\s*(?:ds_|env_)/i.test(input.targets[0].caption) ||
-      input.targets[0].media.some((item) =>
-        /\.hmproj(?:$|[?#])/i.test(item.mediaId)
-      )
+      target.publishMode === 'story_sequence' &&
+      (target.media.length < 2 || target.media.length > 10)
     ) {
       throw new PrePublishRenderError(
-        'RenderPayloadInvalid',
+        'StorySequenceInvalid',
         HttpStatus.UNPROCESSABLE_ENTITY,
-        'The rendered target is incomplete or unresolved.'
+        'A Story sequence requires between 2 and 10 ordered media items.'
       );
     }
-    const renderedAt = new Date(input.renderedAtUtc);
-    if (
-      Number.isNaN(renderedAt.getTime()) ||
-      renderedAt.getTime() > Date.now() + 5 * 60 * 1000
-    ) {
-      throw new PrePublishRenderError(
-        'RenderPayloadInvalid',
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        'The rendered timestamp is invalid.'
-      );
-    }
-    const expectedHash = computeRenderContentHash({
-      occurrenceId,
-      correlation: input.correlation,
-      targets: input.targets,
-      renderedAtUtc: input.renderedAtUtc,
-    });
-    if (input.contentHash !== expectedHash) {
-      throw new PrePublishRenderError(
-        'RenderPayloadInvalid',
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        'The rendered content hash does not match the payload.'
-      );
-    }
-
-    const target = input.targets[0];
     const integration = await this.prisma.integration.findFirst({
       where: {
         id: target.integrationId,
@@ -455,6 +503,18 @@ export class PrePublishRenderService {
         'RenderPayloadInvalid',
         HttpStatus.UNPROCESSABLE_ENTITY,
         'The rendered channel does not match the scheduled integration.'
+      );
+    }
+    if (
+      target.publishMode === 'story_sequence' &&
+      !['facebook', 'instagram', 'instagram-standalone', 'happym-test-fixture'].includes(
+        integration.providerIdentifier
+      )
+    ) {
+      throw new PrePublishRenderError(
+        'StorySequenceUnsupported',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'Story sequences are not supported by the scheduled provider.'
       );
     }
     const mediaIds = [
@@ -481,6 +541,29 @@ export class PrePublishRenderService {
       );
     }
     const byId = new Map(media.map((item) => [item.id, item]));
+    if (
+      target.publishMode === 'story_sequence' &&
+      target.media.some((item) => {
+        const stored = byId.get(item.mediaId);
+        if (!stored) return true;
+        if (item.kind === 'video') {
+          return (
+            item.mime.toLowerCase() !== 'video/mp4' ||
+            !/\.mp4(?:$|[?#])/i.test(stored.path)
+          );
+        }
+        return (
+          !item.mime.toLowerCase().startsWith('image/') ||
+          !/\.(?:png|jpe?g)(?:$|[?#])/i.test(stored.path)
+        );
+      })
+    ) {
+      throw new PrePublishRenderError(
+        'StorySequenceInvalid',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'Story sequence videos must be MP4 and media kinds must match their MIME type.'
+      );
+    }
 
     return this.prisma.$transaction(
       async (tx) => {
@@ -518,7 +601,28 @@ export class PrePublishRenderService {
         let settings: Record<string, unknown> = {};
         try {
           settings = JSON.parse(post.settings || '{}');
-        } catch {}
+        } catch {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'The scheduled provider settings are invalid.');
+        }
+        if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY, 'The scheduled provider settings are invalid.');
+        }
+        if (target.contentMode === 'text_only' &&
+            (settings.story_sequence || settings.thumbnail)) {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'Text-only content cannot retain a media presentation.');
+        }
+        if (
+          target.publishMode === 'story_sequence' &&
+          settings.post_type !== 'story'
+        ) {
+          throw new PrePublishRenderError(
+            'StorySequenceInvalid',
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            'A Story sequence requires post_type=story on the scheduled target.'
+          );
+        }
         const thumbnail = target.extras?.thumbnailMediaId
           ? byId.get(target.extras.thumbnailMediaId)
           : undefined;
@@ -529,6 +633,41 @@ export class PrePublishRenderService {
                 process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY || ''
               ).replace(/^\//, '')}${thumbnail.path}`
           : undefined;
+        const finalSettings = {
+          ...settings,
+          ...(target.publishMode === 'story_sequence' ? { story_sequence: true } : {}),
+          ...(target.extras?.youtubeTitle ? { title: target.extras.youtubeTitle } : {}),
+          ...(thumbnail ? { thumbnail: { id: thumbnail.id, path: thumbnailPath } } : {}),
+        };
+        // Re-read inside the same serializable transaction as ReadyToPublish.
+        const currentIntegration = await tx.integration.findFirst({
+          where: { id: target.integrationId, organizationId, deletedAt: null },
+          select: { id: true, providerIdentifier: true, name: true, additionalSettings: true },
+        });
+        if (!currentIntegration || currentIntegration.providerIdentifier !== target.channel) {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'The scheduled integration no longer matches the rendered target.');
+        }
+        let validation;
+        try {
+          validation = await this.payloadValidation.validate(currentIntegration, {
+          settings: finalSettings,
+          value: [{ content: target.caption, image: target.media.map((item) => ({
+            path: byId.get(item.mediaId)!.path,
+          })) }],
+          });
+        } catch {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'The final content is not accepted by the scheduled provider.');
+        }
+        if (validation.valid !== true || validation.errors !== true ||
+            validation.emptyContent || validation.tooLong) {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'The final content is not accepted by the scheduled provider.');
+        }
+        if (!current.leaseExpiresAt || current.leaseExpiresAt <= new Date()) {
+          throw new PrePublishRenderError('RenderTimedOut', HttpStatus.GONE, 'The render lease has expired.');
+        }
         await tx.post.update({
           where: { id: post.id },
           data: {
@@ -540,15 +679,7 @@ export class PrePublishRenderService {
                 type: item.kind,
               }))
             ),
-            settings: JSON.stringify({
-              ...settings,
-              ...(target.extras?.youtubeTitle
-                ? { title: target.extras.youtubeTitle }
-                : {}),
-              ...(thumbnail
-                ? { thumbnail: { id: thumbnail.id, path: thumbnailPath } }
-                : {}),
-            }),
+            settings: JSON.stringify(finalSettings),
           },
         });
         const ready = await tx.prePublishRenderOccurrence.update({
@@ -660,13 +791,38 @@ export class PrePublishRenderService {
     }
   }
 
-  async completeFromPost(organizationId: string, occurrenceId: string) {
+  async completeFromPost(
+    organizationId: string,
+    occurrenceId: string,
+    providerReceipts: ProviderPublishReceipt[] = []
+  ) {
     const occurrence = await this.prisma.prePublishRenderOccurrence.findFirst({
       where: { id: occurrenceId, organizationId },
       include: { post: true },
     });
     if (!occurrence) return;
     const published = occurrence.post.state === 'PUBLISHED';
+    let publishReceipt = null;
+    try {
+      const rendered = JSON.parse(occurrence.renderedPayload || '{}');
+      const target = rendered.targets?.[0] as RenderTarget | undefined;
+      if (target?.publishMode === 'story_sequence') {
+        const mediaByIndex = target.media || [];
+        publishReceipt = {
+          bundleId: `story-sequence:${occurrence.id}`,
+          mode: 'story_sequence',
+          provider: target.channel,
+          status: published ? 'Published' : 'Failed',
+          children: providerReceipts
+            .slice()
+            .sort((left, right) => left.slideIndex - right.slideIndex)
+            .map((receipt) => ({
+              ...receipt,
+              mediaId: mediaByIndex[receipt.slideIndex]?.mediaId || null,
+            })),
+        };
+      }
+    } catch {}
     await this.prisma.prePublishRenderOccurrence.update({
       where: { id: occurrence.id },
       data: {
@@ -674,6 +830,7 @@ export class PrePublishRenderService {
         publishedAt: published ? new Date() : null,
         releaseId: occurrence.post.releaseId,
         releaseUrl: occurrence.post.releaseURL,
+        publishReceipt: publishReceipt ? JSON.stringify(publishReceipt) : null,
         failureReason: published
           ? null
           : occurrence.post.error || 'PublishFailed',

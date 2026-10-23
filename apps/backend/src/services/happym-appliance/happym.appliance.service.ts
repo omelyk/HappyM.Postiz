@@ -16,6 +16,8 @@ import { requireSyntheticNativeCredential, syntheticBinding, syntheticIdentifier
 import { TemporalSearchAttributesReadiness } from '@gitroom/nestjs-libraries/temporal/temporal.register';
 import { happyMDevLoginHint } from '@gitroom/nestjs-libraries/happym-appliance/happym.dev-login';
 import { mastraStoreReadiness } from '@gitroom/nestjs-libraries/chat/mastra.readiness';
+import { NativeConsumerAdmission30Service } from './happym.native-consumer-admission30';
+import { SyntheticBinding } from '@gitroom/nestjs-libraries/database/prisma/synthetic-fixture/synthetic-fixture.service';
 import { ensureLocalAdmin } from './happym.local-admin.service';
 import { LOCAL_ADMIN_ID } from '@gitroom/nestjs-libraries/happym-appliance/happym.local-admin';
 
@@ -180,8 +182,47 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       || typeof consumer.pharmacyId !== 'string' || !/^[A-Za-z0-9_.:-]{1,100}$/.test(consumer.pharmacyId))
       throw new ForbiddenException({ code: 'native_consumer_scope_invalid' });
     const scope = { deploymentId: consumer.deploymentId, environment: 'test' as const,
-      tenantId: consumer.tenantId, pharmacyId: consumer.pharmacyId };
-    const digest = createHash('sha256').update(JSON.stringify(['happym.postiz.consumer-workspace/v1',
+      tenantId: consumer.tenantId as string, pharmacyId: consumer.pharmacyId as string };
+    return this.completeNativeConsumer30(binding, scope, input.requestId as string, input.requireExisting,
+      credential, systemOrganizationId, async () => {});
+  }
+
+  async enrollNativeConsumer30(input: unknown, credential: unknown) {
+    this.assertReady();
+    return new NativeConsumerAdmission30Service(this.prisma).enroll(input, credential);
+  }
+
+  async bootstrapSharedNativeConsumer30(input: unknown, credential: unknown) {
+    this.assertReady(); requireSyntheticNativeCredential(credential);
+    const object = (value: unknown, keys: string[]): value is Record<string, unknown> => !!value && typeof value === 'object'
+      && !Array.isArray(value) && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
+    if (!object(input, ['contract', 'admissionId', 'applianceBinding', 'consumerBinding', 'consumer', 'requestId', 'requireExisting'])
+      || input.contract !== 'happym.native-consumer-bootstrap/v2' || typeof input.requestId !== 'string'
+      || !/^[a-f0-9]{32}$/.test(input.requestId) || typeof input.requireExisting !== 'boolean')
+      throw new BadRequestException({ code: 'consumer30_bootstrap_invalid' });
+    const admissions = new NativeConsumerAdmission30Service(this.prisma);
+    const admitted = await admissions.requireScope(input.admissionId, input.applianceBinding, input.consumerBinding, input.consumer);
+    const scope = input.consumer as { deploymentId: string; environment: 'test'; tenantId: string; pharmacyId: string };
+    const current = async (tx?: Prisma.TransactionClient) => {
+      requireSyntheticNativeCredential(credential);
+      const actual = await admissions.requireScope(input.admissionId, input.applianceBinding, input.consumerBinding, input.consumer, tx);
+      if (JSON.stringify(actual) !== JSON.stringify(admitted))
+        throw new ServiceUnavailableException({ code: 'consumer30_admission_changed' });
+    };
+    const workspace = admitted.scopes.find(row => row.tenantId === scope.tenantId && row.pharmacyId === scope.pharmacyId)!;
+    const completed = await this.completeNativeConsumer30(admitted.applianceBinding, scope, input.requestId,
+      input.requireExisting, credential, this.configuration().systemOrganizationId, current, workspace.organizationId.slice(3));
+    await current();
+    return { contract: 'happym.native-consumer-bootstrap/v2' as const, admissionId: admitted.admissionId,
+      applianceBinding: admitted.applianceBinding, consumerBinding: admitted.consumerBinding, consumer: completed.consumer,
+      requestId: completed.requestId, organizationId: completed.organizationId, userId: completed.userId, apiKey: completed.apiKey };
+  }
+
+  private async completeNativeConsumer30(binding: SyntheticBinding,
+    scope: { deploymentId: string; environment: 'test'; tenantId: string; pharmacyId: string },
+    requestId: string, requireExisting: boolean, credential: unknown, systemOrganizationId: string,
+    guard: (tx?: Prisma.TransactionClient) => Promise<void>, admittedWorkspaceDigest?: string) {
+    const digest = admittedWorkspaceDigest ?? createHash('sha256').update(JSON.stringify(['happym.postiz.consumer-workspace/v1',
       scope.deploymentId, scope.environment, scope.tenantId, scope.pharmacyId]), 'utf8').digest('hex');
     const organizationId = 'hm-' + digest, userId = 'sm.' + digest;
     const email = digest + '@social-manager.local';
@@ -199,7 +240,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     let envelope: { organizationId: string; userId: string; apiKey: string };
     try {
       envelope = await this.prisma.$transaction(async tx => {
-        current();
+        current(); await guard(tx);
         const system = await tx.organization.findUnique({ where: { id: systemOrganizationId },
           select: { apiKey: true } });
         current();
@@ -218,7 +259,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
         current();
         // Validate every existing identity before a create. Never silently
         // reactivate, rename, change a role, replace a key, or rotate on replay.
-        if (input.requireExisting && (!organization || !user || memberships.length !== 1)
+        if (requireExisting && (!organization || !user || memberships.length !== 1)
           || organization && (organization.name !== organizationId || !keyValid(organization.apiKey) || organization.apiKey === system?.apiKey
             || organization.allowTrial !== false || organization.isTrailing !== false)
           || user && (user.email !== email || user.name !== organizationId || user.providerName !== Provider.LOCAL || !user.activated)
@@ -250,16 +291,17 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
           current();
         }
         if (!keyValid(held.apiKey) || held.apiKey === system.apiKey) conflict();
+        await guard(tx); current();
         return { organizationId, userId, apiKey: held.apiKey };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 1000, timeout: 5000 });
-      current();
+      current(); await guard();
     } catch (error) {
       if (error instanceof ConflictException) throw error;
       // No database details or secret-bearing envelope in a public exception.
       throw new ServiceUnavailableException({ code: 'native_consumer_outcome_unknown' });
     }
     return { contract: 'happym.native-consumer-bootstrap/v1' as const,
-      binding, consumer: scope, requestId: input.requestId, ...envelope };
+      binding, consumer: scope, requestId: requestId, ...envelope };
   }
 
   async ensureOrganization(body: EnsureOrganizationRequest) {
@@ -271,7 +313,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       'organizationId'
     );
     const name = this.text(
-      body.name || `Social Manager · ${pharmacyCode}`,
+      body.name || `Social Manager Â· ${pharmacyCode}`,
       'name',
       160
     );

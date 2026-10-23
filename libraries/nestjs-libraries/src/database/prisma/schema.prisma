@@ -1098,3 +1098,23 @@ model Announcement {
   color       AnnouncementColor @default(INFO)
   createdAt   DateTime          @default(now())
 }
+
+
+// Separate server-owned metadata. No credential values; no update/upsert API.
+model NativeConsumerAdmission30 {
+  admissionId String @id @db.Char(64)
+  requestId   String @db.Char(32)
+  receiptJson String
+  createdAt   DateTime @default(now())
+  scopes      NativeConsumerScopeAdmission30[]
+}
+
+model NativeConsumerScopeAdmission30 {
+  organizationId String @id
+  userId         String @unique
+  admissionId    String @db.Char(64)
+  tenantId       String
+  pharmacyId     String
+  admission      NativeConsumerAdmission30 @relation(fields: [admissionId], references: [admissionId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([admissionId, pharmacyId])
+}

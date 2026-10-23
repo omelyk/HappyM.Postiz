@@ -1,5 +1,6 @@
 import {
   Body,
+  Param,
   Controller,
   Get,
   Header,
@@ -46,6 +47,34 @@ export class HappyMApplianceController {
   @Header('Cache-Control', 'no-store')
   activation(@Headers('x-happym-probe-nonce') nonce: unknown) {
     return this.activationReadiness.observe(nonce);
+  }
+
+  @Get('/activation-readiness/capabilities30')
+  @Header('Cache-Control', 'no-store')
+  consumerCapabilities30(@Headers('x-happym-probe-nonce') nonce: unknown,
+    @Headers('x-happym-native-fixture-authorization') purpose: unknown,
+    @Headers('x-happym-native-embed-authorization30') embed: unknown,
+    @Headers('x-happym-native-system-authorization30') systemKey: unknown,
+    @Headers('x-happym-native-system-organization30') systemOrganization: unknown) {
+    return this.activationReadiness.observeCapabilities30(nonce, purpose, embed, systemKey, systemOrganization);
+  }
+
+  @Get('/activation-readiness/consumer30/:admissionId')
+  @Header('Cache-Control', 'no-store')
+  consumerReadiness30(@Headers('x-happym-probe-nonce') nonce: unknown, @Param('admissionId') admissionId: string) {
+    return this.activationReadiness.observeConsumer30(nonce, admissionId);
+  }
+
+  @Post('/native-consumer/enroll30')
+  @Header('Cache-Control', 'no-store')
+  enrollConsumer30(@Body() body: unknown, @Headers('x-happym-native-fixture-authorization') credential: unknown) {
+    return this.appliance.enrollNativeConsumer30(body, credential);
+  }
+
+  @Post('/native-consumer/bootstrap30')
+  @Header('Cache-Control', 'no-store')
+  bootstrapConsumer30(@Body() body: unknown, @Headers('x-happym-native-fixture-authorization') credential: unknown) {
+    return this.appliance.bootstrapSharedNativeConsumer30(body, credential);
   }
 
   @Get('/linked')

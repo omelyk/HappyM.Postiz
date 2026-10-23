@@ -35,7 +35,7 @@ describe('shared appliance consumer admission30', () => {
           const row = { ...data, scopes }; records.set(data.admissionId, row); return row;
         },
       },
-      organization: { findUnique: async () => null }, user: { findUnique: async () => null },
+      organization: { findUnique: async (): Promise<null> => null }, user: { findUnique: async (): Promise<null> => null },
     };
     db.$transaction = async (body: any) => {
       const before = structuredClone(records);

@@ -71,6 +71,40 @@ export class SyntheticFixtureService {
   // additional native-purpose credential is issued/retained by qualified native
   // setup, never a browser/ordinary SDK command. Its absence leaves seed closed.
   async provision(input: unknown, nativeCredential: unknown) {
+    return this.prisma.$transaction(async tx => {
+      const current = async () => {
+        this.requireNativeCredential(nativeCredential);
+        // The legacy diagnostic ingress cannot provision the added operational
+        // pharmacies using only M2M/purpose. Existing diagnostic2 rows retain
+        // their protocol; new operational scopes require the SYSTEM route31.
+        if (input && typeof input === 'object' && 'organizationId' in input && typeof input.organizationId === 'string') {
+          const owner = await tx.nativeWorkspaceOwner31.findUnique({ where: { organizationId: input.organizationId } });
+          if (owner) {
+            const diagnostic = await tx.nativeConsumerScopeAdmission30.findUnique({ where: { organizationId: input.organizationId } });
+            if (!diagnostic || diagnostic.userId !== owner.userId)
+              throw new ForbiddenException({ code: 'operational31_administrator_required' });
+          }
+        }
+      };
+      await current(); const result = await this.provisionCore31(input, nativeCredential, tx, current);
+      await current(); return result;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 1000, timeout: 5000 });
+  }
+
+  // Native operational controller supplies the ACTUAL current SYSTEM/scope
+  // check. It executes inside this same mutating transaction, not a prior GET.
+  async provisionAuthorized31(input: unknown, nativeCredential: unknown,
+    authorize: (tx: Prisma.TransactionClient) => Promise<void>) {
+    return this.prisma.$transaction(async tx => {
+      const current = async () => { this.requireNativeCredential(nativeCredential); await authorize(tx); };
+      await current();
+      const result = await this.provisionCore31(input, nativeCredential, tx, current, true);
+      await current(); return result;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 1000, timeout: 5000 });
+  }
+
+  private async provisionCore31(input: unknown, nativeCredential: unknown,
+    db: PrismaService | Prisma.TransactionClient, current: () => Promise<void>, requireAbsent31 = false) {
     const binding = syntheticBinding(); this.requireNativeCredential(nativeCredential);
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException({ code: 'synthetic_provision_invalid' });
     const row = input as Record<string, unknown>;
@@ -84,15 +118,20 @@ export class SyntheticFixtureService {
       throw new ForbiddenException({ code: 'synthetic_target_binding_mismatch' });
     const profile = row.profile as SyntheticProfile, org = row.organizationId;
     const id = syntheticIntegrationId(binding, org, profile);
-    if (!await this.prisma.organization.findUnique({ where: { id: org }, select: { id: true } }))
+    await current();
+    if (!await db.organization.findUnique({ where: { id: org }, select: { id: true } }))
       throw new NotFoundException({ code: 'synthetic_organization_missing' });
-    let integration = await this.prisma.integration.findFirst({ where: { id, organizationId: org, providerIdentifier: SYNTHETIC_PROVIDER } });
-    if (!integration) integration = await this.prisma.integration.create({ data: {
+    await current();
+    let integration = await db.integration.findFirst({ where: { id, organizationId: org, providerIdentifier: SYNTHETIC_PROVIDER } });
+    await current();
+    if (requireAbsent31 && integration) throw new ConflictException({ code: 'operational31_fixture_already_present' });
+    if (!integration) integration = await db.integration.create({ data: {
       id, organizationId: org, internalId: SYNTHETIC_PROVIDER + ':' + profile,
       providerIdentifier: SYNTHETIC_PROVIDER, type: 'social', token: TOKEN,
       name: '[SIMULAZIONE] ' + profile, disabled: false, refreshNeeded: false,
       additionalSettings: '[]',
     } });
+    await current();
     this.requireIntegration(integration, org, binding);
     this.requireSameBinding(binding);
     return { contract: 'happym.synthetic-delivery/v1' as const, mode: 'SIMULATION' as const,

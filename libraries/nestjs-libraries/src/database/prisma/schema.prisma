@@ -1118,3 +1118,24 @@ model NativeConsumerScopeAdmission30 {
   admission      NativeConsumerAdmission30 @relation(fields: [admissionId], references: [admissionId], onDelete: Restrict, onUpdate: Restrict)
   @@unique([admissionId, pharmacyId])
 }
+
+// Operational installer successor31; diagnostic receipt/scopes30 remain immutable.
+model NativeWorkspaceOwner31 {
+  organizationId String @id
+  userId         String @unique
+  consumerKey    String @db.Char(64)
+  metadataJson   String @db.Text
+  @@unique([consumerKey, metadataJson])
+}
+
+model NativeOperationalRegistration31 {
+  operationId         String @id @db.Char(64)
+  requestId           String @unique @db.Char(32)
+  consumerKey         String @db.Char(64)
+  revision            Int
+  previousOperationId String? @db.Char(64)
+  receiptJson         String @db.Text
+  previous            NativeOperationalRegistration31? @relation("OperationalHistory31", fields: [previousOperationId], references: [operationId], onDelete: Restrict, onUpdate: Restrict)
+  successors          NativeOperationalRegistration31[] @relation("OperationalHistory31")
+  @@unique([consumerKey, revision])
+}

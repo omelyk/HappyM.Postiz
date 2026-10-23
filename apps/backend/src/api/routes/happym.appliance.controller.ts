@@ -77,6 +77,79 @@ export class HappyMApplianceController {
     return this.appliance.bootstrapSharedNativeConsumer30(body, credential);
   }
 
+  @Post('/native-consumer/operational-register31')
+  @Header('Cache-Control', 'no-store')
+  registerOperational31(@Body() body: unknown,
+    @Headers('x-happym-native-fixture-authorization') purpose: unknown,
+    @Headers('x-happym-native-system-authorization31') key: unknown,
+    @Headers('x-happym-native-system-organization31') organization: unknown) {
+    return this.appliance.registerOperational31(body, purpose, key, organization);
+  }
+
+  @Post('/native-consumer/operational-fixture31')
+  @Header('Cache-Control', 'no-store')
+  provisionOperationalFixture31(@Body() body: unknown,
+    @Headers('x-happym-native-fixture-authorization') purpose: unknown,
+    @Headers('x-happym-native-system-authorization31') key: unknown,
+    @Headers('x-happym-native-system-organization31') organization: unknown) {
+    return this.appliance.provisionOperationalFixture31(body, purpose, key, organization);
+  }
+
+  @Post('/native-consumer/operational-bootstrap31')
+  @Header('Cache-Control', 'no-store')
+  bootstrapOperational31(@Body() body: unknown,
+    @Headers('x-happym-native-fixture-authorization') purpose: unknown,
+    @Headers('x-happym-native-system-authorization31') key: unknown,
+    @Headers('x-happym-native-system-organization31') organization: unknown) {
+    return this.appliance.bootstrapOperational31(body, purpose, key, organization);
+  }
+
+  @Get('/native-consumer/operational31/:operationId/status')
+  @Header('Cache-Control', 'no-store')
+  inspectOperationalRegistration31(@Param('operationId') operationId: string,
+    @Headers('x-happym-native-fixture-authorization') purpose: unknown,
+    @Headers('x-happym-native-system-authorization31') key: unknown,
+    @Headers('x-happym-native-system-organization31') organization: unknown,
+    @Headers('x-happym-operational-binding31') binding: unknown) {
+    return this.appliance.inspectOperationalRegistration31(operationId, purpose, key, organization, binding);
+  }
+
+  @Get('/native-consumer/operational31/:operationId')
+  @Header('Cache-Control', 'no-store')
+  readOperational31(@Param('operationId') operationId: string) {
+    return this.appliance.readOperational31(operationId);
+  }
+
+  // A distinct read-only recovery route. It never creates an org/user/key;
+  // the private envelope is available only with CURRENT actual SYSTEM authority.
+  @Get('/native-consumer/operational31/:operationId/workspace/:organizationId')
+  @Header('Cache-Control', 'no-store')
+  readOperationalWorkspace31(@Param('operationId') operationId: string, @Param('organizationId') organizationId: string,
+    @Headers('x-happym-native-fixture-authorization') purpose: unknown,
+    @Headers('x-happym-native-system-authorization31') key: unknown,
+    @Headers('x-happym-native-system-organization31') organization: unknown) {
+    return this.appliance.readOperationalWorkspace31(operationId, organizationId, purpose, key, organization);
+  }
+
+  @Get('/native-consumer/operational31/:operationId/state/:organizationId')
+  @Header('Cache-Control', 'no-store')
+  inspectOperationalWorkspace31(@Param('operationId') operationId: string, @Param('organizationId') organizationId: string,
+    @Headers('x-happym-native-fixture-authorization') purpose: unknown,
+    @Headers('x-happym-native-system-authorization31') key: unknown,
+    @Headers('x-happym-native-system-organization31') organization: unknown) {
+    return this.appliance.inspectOperationalWorkspace31(operationId, organizationId, purpose, key, organization);
+  }
+
+  @Get('/activation-readiness/capabilities31')
+  @Header('Cache-Control', 'no-store')
+  operationalCapabilities31(@Headers('x-happym-probe-nonce') nonce: unknown,
+    @Headers('x-happym-native-fixture-authorization') purpose: unknown,
+    @Headers('x-happym-native-embed-authorization30') embed: unknown,
+    @Headers('x-happym-native-system-authorization30') systemKey: unknown,
+    @Headers('x-happym-native-system-organization30') systemOrganization: unknown) {
+    return this.activationReadiness.observeCapabilities31(nonce, purpose, embed, systemKey, systemOrganization);
+  }
+
   @Get('/linked')
   linked() {
     return this.appliance.status();

@@ -1,3 +1,5 @@
+import { SyntheticFixtureService, SYNTHETIC_PROFILES } from '@gitroom/nestjs-libraries/database/prisma/synthetic-fixture/synthetic-fixture.service';
+import { NativeOperationalConsumer31Service } from './happym.operational-consumer31';
 import {
   BadRequestException,
   ConflictException,
@@ -218,10 +220,116 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       requestId: completed.requestId, organizationId: completed.organizationId, userId: completed.userId, apiKey: completed.apiKey };
   }
 
+  private operational31() {
+    const config = this.configuration();
+    return new NativeOperationalConsumer31Service(this.prisma, config.systemOrganizationId, config.adminEmail);
+  }
+
+  async registerOperational31(input: unknown, purpose: unknown, systemKey: unknown, systemOrganization: unknown) {
+    this.assertReady();
+    return this.operational31().register(input, purpose, systemKey, systemOrganization);
+  }
+
+  async inspectOperationalRegistration31(operationId: unknown, purpose: unknown, key: unknown, org: unknown, binding: unknown) {
+    this.assertReady(); return this.operational31().inspectRegistration(operationId, purpose, key, org, binding);
+  }
+
+  async readOperational31(operationId: unknown) {
+    this.assertReady(); return this.operational31().read(operationId);
+  }
+
+  async inspectOperationalWorkspace31(operationId: string, organizationId: string,
+    purpose: unknown, systemKey: unknown, systemOrganization: unknown) {
+    this.assertReady();
+    const operations = this.operational31(), r = await operations.read(operationId);
+    const scope = r.scopes.find(x => x.organizationId === organizationId);
+    if (!scope) throw new ForbiddenException({ code: 'operational31_scope_not_authorized' });
+    const consumer = { deploymentId: r.consumerBinding.logicalDeploymentId, environment: 'test', tenantId: scope.tenantId, pharmacyId: scope.pharmacyId };
+    return this.prisma.$transaction(async tx => {
+      await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+      await operations.requireScope(operationId, r.applianceBinding, r.consumerBinding, consumer, purpose,
+        systemKey, systemOrganization, tx, false);
+      const organization = await tx.organization.findUnique({ where: { id: scope.organizationId }, select: { id: true } });
+      const user = await tx.user.findUnique({ where: { id: scope.userId }, select: { id: true } });
+      const membership = await tx.userOrganization.findMany({ where: { userId: scope.userId }, select: { organizationId: true } });
+      if (!!organization !== !!user || !organization && membership.length !== 0
+        || organization && (membership.length !== 1 || membership[0].organizationId !== organizationId))
+        throw new ConflictException({ code: 'operational31_partial_workspace' });
+      await operations.requireScope(operationId, r.applianceBinding, r.consumerBinding, consumer, purpose,
+        systemKey, systemOrganization, tx, false);
+      return { contract: 'happym.postiz-operational-workspace-state31/v1' as const, operationId,
+        requestId: r.requestId, organizationId, userId: scope.userId, consumer,
+        state: organization ? 'Present' as const : 'Absent' as const };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 1000, timeout: 5000 });
+  }
+
+  async readOperationalWorkspace31(operationId: string, organizationId: string,
+    purpose: unknown, systemKey: unknown, systemOrganization: unknown) {
+    this.assertReady();
+    const r = await this.operational31().read(operationId);
+    const scope = r.scopes.find(x => x.organizationId === organizationId);
+    if (!scope) throw new ForbiddenException({ code: 'operational31_scope_not_authorized' });
+    return this.bootstrapOperational31({ contract: 'happym.postiz-operational-bootstrap31/v1', operationId,
+      applianceBinding: r.applianceBinding, consumerBinding: r.consumerBinding, requestId: r.requestId,
+      consumer: { deploymentId: r.consumerBinding.logicalDeploymentId, environment: 'test', tenantId: scope.tenantId, pharmacyId: scope.pharmacyId } },
+      purpose, systemKey, systemOrganization, true);
+  }
+
+  async provisionOperationalFixture31(input: unknown, purpose: unknown, key: unknown, org: unknown) {
+    this.assertReady(); requireSyntheticNativeCredential(purpose);
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException();
+    const row = input as Record<string, unknown>;
+    if (Object.keys(row).sort().join(',') !== ['contract','operationId','applianceBinding','consumerBinding','consumer','requestId','profile'].sort().join(',')
+      || row.contract !== 'happym.postiz-operational-fixture31/v1' || !SYNTHETIC_PROFILES.some(profile => profile === row.profile))
+      throw new BadRequestException({ code: 'operational31_fixture_invalid' });
+    const operations = this.operational31(), r = await operations.read(row.operationId);
+    const scope = row.consumer as { deploymentId: string; environment: string; tenantId: string; pharmacyId: string };
+    const selected = r.scopes.find(x => x.tenantId === scope?.tenantId && x.pharmacyId === scope?.pharmacyId);
+    if (!selected || r.requestId !== row.requestId) throw new ForbiddenException({ code: 'operational31_scope_not_authorized' });
+    return new SyntheticFixtureService(this.prisma).provisionAuthorized31({ binding: r.applianceBinding,
+      organizationId: selected.organizationId, profile: row.profile }, purpose, async tx => {
+      await operations.requireScope(row.operationId, row.applianceBinding, row.consumerBinding, row.consumer,
+        purpose, key, org, tx, true);
+    });
+  }
+
+  async bootstrapOperational31(input: unknown, purpose: unknown, systemKey: unknown, systemOrganization: unknown, readExisting = false) {
+    this.assertReady(); requireSyntheticNativeCredential(purpose);
+    const object = (v: unknown, fields: string[]): v is Record<string, unknown> => !!v && typeof v === 'object'
+      && !Array.isArray(v) && Object.keys(v).sort().join(',') === [...fields].sort().join(',');
+    if (!object(input, ['contract', 'operationId', 'applianceBinding', 'consumerBinding', 'consumer', 'requestId'])
+      || input.contract !== 'happym.postiz-operational-bootstrap31/v1' || typeof input.requestId !== 'string'
+      || !/^[a-f0-9]{32}$/.test(input.requestId)) throw new BadRequestException({ code: 'operational31_bootstrap_invalid' });
+    const operations = this.operational31();
+    const require = async (tx: Prisma.TransactionClient) => {
+      const r = await operations.requireScope(input.operationId, input.applianceBinding, input.consumerBinding,
+        input.consumer, purpose, systemKey, systemOrganization, tx, !readExisting);
+      if (r.requestId !== input.requestId) throw new ForbiddenException({ code: 'operational31_request_mismatch' });
+      return r;
+    };
+    const observe = () => this.prisma.$transaction(async tx => {
+      await tx.$executeRaw`SET TRANSACTION READ ONLY`; return require(tx);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 1000, timeout: 5000 });
+    const registration = await observe();
+    const scope = input.consumer as { deploymentId: string; environment: 'test'; tenantId: string; pharmacyId: string };
+    const selected = registration.scopes.find(x => x.tenantId === scope.tenantId && x.pharmacyId === scope.pharmacyId)!;
+    const guard = async (tx?: Prisma.TransactionClient) => {
+      const actual = tx ? await require(tx) : await observe();
+      if (JSON.stringify(actual) !== JSON.stringify(registration))
+        throw new ServiceUnavailableException({ code: 'operational31_registration_changed' });
+    };
+    const value = await this.completeNativeConsumer30(registration.applianceBinding, scope, input.requestId,
+      readExisting, purpose, this.configuration().systemOrganizationId, guard, selected.organizationId.slice(3), readExisting, !readExisting);
+    await guard();
+    return { contract: 'happym.postiz-operational-bootstrap31/v1' as const, operationId: registration.operationId,
+      applianceBinding: registration.applianceBinding, consumerBinding: registration.consumerBinding,
+      consumer: value.consumer, requestId: value.requestId, organizationId: value.organizationId, userId: value.userId, apiKey: value.apiKey };
+  }
+
   private async completeNativeConsumer30(binding: SyntheticBinding,
     scope: { deploymentId: string; environment: 'test'; tenantId: string; pharmacyId: string },
     requestId: string, requireExisting: boolean, credential: unknown, systemOrganizationId: string,
-    guard: (tx?: Prisma.TransactionClient) => Promise<void>, admittedWorkspaceDigest?: string) {
+    guard: (tx?: Prisma.TransactionClient) => Promise<void>, admittedWorkspaceDigest?: string, readOnlyExisting = false, requireAbsentWorkspace = false) {
     const digest = admittedWorkspaceDigest ?? createHash('sha256').update(JSON.stringify(['happym.postiz.consumer-workspace/v1',
       scope.deploymentId, scope.environment, scope.tenantId, scope.pharmacyId]), 'utf8').digest('hex');
     const organizationId = 'hm-' + digest, userId = 'sm.' + digest;
@@ -240,6 +348,11 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
     let envelope: { organizationId: string; userId: string; apiKey: string };
     try {
       envelope = await this.prisma.$transaction(async tx => {
+        if (readOnlyExisting) await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+        // All native creators share the physical workspace lock. A delayed
+        // uncertain create cannot race a fresh require-ABSENT operational POST.
+        if (!readOnlyExisting)
+          await tx.$queryRaw`SELECT true AS locked FROM pg_advisory_xact_lock(hashtextextended(${organizationId},0))`;
         current(); await guard(tx);
         const system = await tx.organization.findUnique({ where: { id: systemOrganizationId },
           select: { apiKey: true } });
@@ -257,6 +370,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
         const memberships = await tx.userOrganization.findMany({ where: { userId },
           select: { userId: true, organizationId: true, role: true, disabled: true } });
         current();
+        if (requireAbsentWorkspace && (organization || user || emailOwner || memberships.length !== 0)) conflict();
         // Validate every existing identity before a create. Never silently
         // reactivate, rename, change a role, replace a key, or rotate on replay.
         if (requireExisting && (!organization || !user || memberships.length !== 1)
@@ -313,7 +427,7 @@ export class HappyMApplianceService implements OnApplicationBootstrap {
       'organizationId'
     );
     const name = this.text(
-      body.name || `Social Manager Â· ${pharmacyCode}`,
+      body.name || `Social Manager \u00b7 ${pharmacyCode}`,
       'name',
       160
     );

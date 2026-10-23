@@ -9,6 +9,7 @@ describe('shared appliance consumer admission30', () => {
   const original = { ...process.env };
   const purpose = 'p'.repeat(48);
   let records: Map<string, any>;
+  let owners: Map<string, any>;
   let service: NativeConsumerAdmission30Service;
   beforeEach(() => {
     process.env.HAPPYM_APPLIANCE_MODE = 'true';
@@ -23,8 +24,16 @@ describe('shared appliance consumer admission30', () => {
     process.env.HAPPYM_APPLIANCE_INTERNAL_CLIENT_ID = 'control';
     process.env.HAPPYM_APPLIANCE_INTERNAL_CLIENT_SECRET = 'c'.repeat(48);
     process.env.HAPPYM_EMBED_CLIENT_SECRET = 'e'.repeat(48);
-    records = new Map();
+    records = new Map(); owners = new Map();
     const db: any = {
+      $queryRaw: async () => [{ locked: true }],
+      nativeWorkspaceOwner31: {
+        findUnique: async ({ where }: any) => owners.get(where.organizationId) ?? null,
+        create: async ({ data }: any) => {
+          if (owners.has(data.organizationId) || [...owners.values()].some(x => x.userId === data.userId)) throw new Error('owner_unique');
+          owners.set(data.organizationId, data); return data;
+        },
+      },
       nativeConsumerAdmission30: {
         findUnique: async ({ where }: any) => records.get(where.admissionId) ?? null,
         create: async ({ data }: any) => {
@@ -38,8 +47,8 @@ describe('shared appliance consumer admission30', () => {
       organization: { findUnique: async (): Promise<null> => null }, user: { findUnique: async (): Promise<null> => null },
     };
     db.$transaction = async (body: any) => {
-      const before = structuredClone(records);
-      try { return await body(db); } catch (error) { records = before; throw error; }
+      const before = structuredClone(records), priorOwners = structuredClone(owners);
+      try { return await body(db); } catch (error) { records = before; owners = priorOwners; throw error; }
     };
     service = new NativeConsumerAdmission30Service(db);
   });

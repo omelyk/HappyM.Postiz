@@ -41,6 +41,10 @@ function fixture(profile: SyntheticProfile = 'success', slides = 2) {
   let receipts: SyntheticDeliveryReceipt[] = [], events: SyntheticDeliveryEvent[] = [];
   let rejectCompletion = false;
   const tx = {
+    organization: { findUnique: jest.fn(async () => ({ id: organizationId })) },
+    integration: { findFirst: jest.fn(async () => integration), create: jest.fn() },
+    nativeWorkspaceOwner31: { findUnique: jest.fn(async (): Promise<null> => null) },
+    nativeConsumerScopeAdmission30: { findUnique: jest.fn(async (): Promise<null> => null) },
     $queryRaw: jest.fn(async () => [{ id: postId }]),
     prePublishRenderOccurrence: {
       findFirst: jest.fn(async ({ where }: { where: { id: string; organizationId: string; postId: string } }) =>

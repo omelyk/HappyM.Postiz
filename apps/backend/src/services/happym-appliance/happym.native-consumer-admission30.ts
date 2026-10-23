@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import { claimOwner31, lockOwners31, ownerKey31 } from './happym.workspace-owner31';
 import { PrismaService } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { requireSyntheticNativeCredential, syntheticBinding, SyntheticBinding } from '@gitroom/nestjs-libraries/database/prisma/synthetic-fixture/synthetic-fixture.service';
 
@@ -102,19 +103,19 @@ export class NativeConsumerAdmission30Service {
     try {
       await this.prisma.$transaction(async tx => {
         current();
+        await lockOwners31(tx, ownerKey31(applianceBinding, consumerBinding), scopes.map(x => x.organizationId));
+        current();
         const old = await tx.nativeConsumerAdmission30.findUnique({ where: { admissionId } });
         if (old) {
           if (!input.requireExisting || old.requestId !== requestId || old.receiptJson !== JSON.stringify(receipt))
             throw new ConflictException({ code: 'consumer30_enrollment_conflict' });
+          for (const scope of scopes) await claimOwner31(tx, applianceBinding, consumerBinding, scope, async () => false, false);
           current(); return;
         }
         if (input.requireExisting) throw new ConflictException({ code: 'consumer30_enrollment_missing' });
         for (const scope of scopes) {
-          // Ownership claims are committed in the SAME serializable transaction.
-          // A preexisting unregistered workspace is never silently adopted.
-          if (await tx.organization.findUnique({ where: { id: scope.organizationId }, select: { id: true } })
-            || await tx.user.findUnique({ where: { id: scope.userId }, select: { id: true } }))
-            throw new ConflictException({ code: 'consumer30_workspace_unclaimed' });
+          await claimOwner31(tx, applianceBinding, consumerBinding, scope, async () => false, true);
+          current();
         }
         await tx.nativeConsumerAdmission30.create({ data: { admissionId, requestId, receiptJson: JSON.stringify(receipt),
           scopes: { create: scopes.map(scope => ({ ...scope })) } } });

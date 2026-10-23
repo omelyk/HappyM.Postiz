@@ -1,3 +1,5 @@
+import { requireOperationalCatalog31 } from './happym.operational-schema31';
+import { requireAdministrator31 } from './happym.operational-consumer31';
 import { timingSafeEqual } from 'node:crypto';
 import { ForbiddenException } from '@nestjs/common';
 import { requireSyntheticNativeCredential, syntheticBinding } from '@gitroom/nestjs-libraries/database/prisma/synthetic-fixture/synthetic-fixture.service';
@@ -66,6 +68,10 @@ export class HappyMActivationReadinessService {
         LEFT JOIN pg_catalog.pg_namespace fn ON fn.oid=fc.relnamespace
         WHERE n.nspname='public' AND c.relname IN ('NativeConsumerAdmission30','NativeConsumerScopeAdmission30')`;
       requireAdmissionCatalog30(columns, constraints);
+      // Successor30 creators now use the common physical owner registry too.
+      // Observe it before controller import/enrollment, without changing the
+      // immutable diagnostic DTO, scope limit or capability response contract.
+      await this.requireOperationalSchema31(tx);
       await tx.nativeConsumerAdmission30.count();
       await tx.nativeConsumerScopeAdmission30.count();
       const system = await tx.organization.findUnique({ where: { id: org }, select: { apiKey: true } });
@@ -78,6 +84,38 @@ export class HappyMActivationReadinessService {
       throw new ForbiddenException({ code: 'consumer30_appliance_changed' });
     return { contract: 'happym.appliance.consumer-capabilities/v1' as const,
       admissionSchema: 'happym.native-consumer-admission/v1' as const, readiness };
+  }
+
+  async observeCapabilities31(nonce: unknown, purpose: unknown, embed: unknown, key: unknown, org: unknown) {
+    const original = await this.observeCapabilities30(nonce, purpose, embed, key, org);
+    await this.prisma.$transaction(async tx => {
+      await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+      await requireAdministrator31(tx, key, org, process.env.HAPPYM_APPLIANCE_SYSTEM_ORGANIZATION_ID || 'happym-system',
+        process.env.HAPPYM_APPLIANCE_ADMIN_EMAIL || '');
+      await this.requireOperationalSchema31(tx);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 1000, timeout: 5000 });
+    requireSyntheticNativeCredential(purpose);
+    return { contract: 'happym.appliance.operational-capabilities31/v1' as const, readiness: original.readiness };
+  }
+
+  private async requireOperationalSchema31(tx: Prisma.TransactionClient) {
+      const columns = await tx.$queryRaw<any[]>`SELECT c.relname::text AS "tableName", a.attname::text AS "columnName",
+        format_type(a.atttypid,a.atttypmod) AS type, a.attnotnull AS "notNull",
+        has_table_privilege(current_user,c.oid,'SELECT') AS "canSelect", has_table_privilege(current_user,c.oid,'INSERT') AS "canInsert"
+        FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace JOIN pg_catalog.pg_attribute a ON a.attrelid=c.oid
+        WHERE n.nspname='public' AND c.relkind='r' AND c.relname IN ('NativeWorkspaceOwner31','NativeOperationalRegistration31') AND a.attnum>0 AND NOT a.attisdropped`;
+      const constraints = await tx.$queryRaw<any[]>`SELECT c.relname::text AS "tableName", k.contype::text AS kind,
+        ARRAY(SELECT a.attname::text FROM unnest(k.conkey) WITH ORDINALITY x(num,ord)
+          JOIN pg_catalog.pg_attribute a ON a.attrelid=c.oid AND a.attnum=x.num ORDER BY x.ord) AS "columns",
+        k.convalidated AS validated, k.condeferrable AS deferred, fc.relname::text AS "foreignTable", fn.nspname::text AS "foreignSchema",
+        ARRAY(SELECT a.attname::text FROM unnest(k.confkey) WITH ORDINALITY x(num,ord)
+          JOIN pg_catalog.pg_attribute a ON a.attrelid=fc.oid AND a.attnum=x.num ORDER BY x.ord) AS "foreignColumns",
+        k.confdeltype::text AS "onDelete", k.confupdtype::text AS "onUpdate"
+        FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_class c ON c.oid=k.conrelid JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+        LEFT JOIN pg_catalog.pg_class fc ON fc.oid=k.confrelid LEFT JOIN pg_catalog.pg_namespace fn ON fn.oid=fc.relnamespace
+        WHERE n.nspname='public' AND c.relname IN ('NativeWorkspaceOwner31','NativeOperationalRegistration31')`;
+      requireOperationalCatalog31(columns, constraints);
+      await tx.nativeWorkspaceOwner31.count(); await tx.nativeOperationalRegistration31.count();
   }
 
   async observeConsumer30(nonce: unknown, admissionId: string) {

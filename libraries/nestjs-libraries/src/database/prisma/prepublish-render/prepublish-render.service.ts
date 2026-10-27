@@ -170,6 +170,32 @@ export class PrePublishRenderService {
     };
   }
 
+  // A journal accepted already overdue owns one finite execution window. Its
+  // requested calendar instant never moves, and replay cannot renew createdAt.
+  // Future-at-creation and non-journal occurrences keep their original deadline.
+  private async renderDeadline(
+    occurrence: { id: string; organizationId: string; postId: string; integrationId: string;
+      scheduledFor: Date; createdAt: Date; leadTimeSeconds: number },
+    db: Pick<PrismaService, 'editorialScheduleIntent'>
+  ): Promise<Date> {
+    const requested = occurrence.scheduledFor;
+    const created = occurrence.createdAt instanceof Date ? occurrence.createdAt.getTime() : NaN;
+    if (!Number.isFinite(created) || requested.getTime() > created) return requested;
+    const seconds = occurrence.leadTimeSeconds;
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 3600) return requested;
+    const intent = await db.editorialScheduleIntent.findUnique({ where: { postId: occurrence.postId },
+      select: { organizationId: true, state: true, dispatchState: true, linksJson: true, createdAt: true } });
+    if (!intent || intent.organizationId !== occurrence.organizationId || intent.state !== 'committed'
+      || !['pending', 'started'].includes(intent.dispatchState)
+      || !(intent.createdAt instanceof Date) || intent.createdAt.getTime() !== created) return requested;
+    let links: unknown;
+    try { links = JSON.parse(intent.linksJson); } catch { return requested; }
+    if (!Array.isArray(links) || links.length !== 1 || !links[0]
+      || links[0].postId !== occurrence.postId || links[0].occurrenceId !== occurrence.id
+      || links[0].integrationId !== occurrence.integrationId) return requested;
+    return new Date(created + seconds * 1000);
+  }
+
   async ensureOccurrence(
     organizationId: string,
     postId: string,
@@ -192,7 +218,12 @@ export class PrePublishRenderService {
       },
       update: {},
     });
-    return this.view(occurrence);
+    const view = this.view(occurrence);
+    const deadline = await this.renderDeadline(occurrence, this.prisma);
+    // This optional activity-result field is absent for every historical future
+    // occurrence, so their recorded workflow timer sequence remains unchanged.
+    return deadline > occurrence.scheduledFor
+      ? { ...view, renderDeadlineUtc: deadline.toISOString() } : view;
   }
 
   async get(organizationId: string, occurrenceId: string) {
@@ -282,9 +313,10 @@ export class PrePublishRenderService {
             'The occurrence was cancelled.'
           );
         }
+        const deadline = await this.renderDeadline(occurrence, tx);
         if (
           occurrence.status === 'RENDER_TIMED_OUT' ||
-          occurrence.scheduledFor <= now
+          deadline <= now
         ) {
           throw new PrePublishRenderError(
             'RenderTimedOut',
@@ -335,9 +367,9 @@ export class PrePublishRenderService {
           now.getTime() + Math.min(Math.max(leaseSeconds, 60), 900) * 1000
         );
         const expiresAt =
-          requestedExpiry < occurrence.scheduledFor
+          requestedExpiry < deadline
             ? requestedExpiry
-            : occurrence.scheduledFor;
+            : deadline;
         const renderToken = this.token(
           occurrence.id,
           idempotencyKey,
@@ -728,12 +760,13 @@ export class PrePublishRenderService {
       where: { id: occurrenceId, organizationId },
     });
     if (!occurrence) return { status: 'Missing' };
+    const waiting = ['SCHEDULED', 'AWAITING_RENDER'].includes(occurrence.status);
+    const deadline = waiting ? await this.renderDeadline(occurrence, this.prisma) : occurrence.scheduledFor;
     if (
       (occurrence.status === 'AWAITING_RENDER' &&
         occurrence.leaseExpiresAt &&
         occurrence.leaseExpiresAt <= new Date()) ||
-      (['SCHEDULED', 'AWAITING_RENDER'].includes(occurrence.status) &&
-        occurrence.scheduledFor <= new Date())
+      (waiting && deadline <= new Date())
     ) {
       await this.timeout(organizationId, occurrenceId);
       return { status: 'RenderTimedOut' };

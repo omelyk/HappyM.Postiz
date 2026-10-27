@@ -1,3 +1,24 @@
+import { createHash } from 'node:crypto';
+import { ScheduleIntentService, scheduleIntentContract } from '@gitroom/nestjs-libraries/database/prisma/schedule-intents/schedule-intent.service';
+import { postWorkflowV107 } from '@gitroom/orchestrator/workflows/post-workflows/post.workflow.v1.0.7';
+import { executeChild, sleep } from '@temporalio/workflow';
+
+// Temporal command boundaries are doubles; real services below are not mocked.
+// This is not a Temporal replay, SQL isolation, provider or native UAT qualification.
+const mockWorkflowActivities: Record<string, (...args: any[]) => Promise<any>> = {};
+jest.mock('@temporalio/workflow', () => ({
+  ActivityFailure: class extends Error {}, ApplicationFailure: class extends Error {},
+  continueAsNew: jest.fn(), executeChild: jest.fn(), sleep: jest.fn(),
+  proxyActivities: () => new Proxy({}, { get: (_target, key) => (...args: any[]) => {
+    const activity = mockWorkflowActivities[String(key)];
+    if (!activity) throw new Error(`Unexpected workflow activity: ${String(key)}`);
+    return activity(...args);
+  } }),
+}));
+jest.mock('@gitroom/orchestrator/workflows/post-workflows/post.workflow.v1.0.6', () => ({ postWorkflowV106: jest.fn() }));
+// Validation receives its explicit collaborator in these unit cases; avoid loading unrelated provider/PDF modules.
+jest.mock('@gitroom/nestjs-libraries/integrations/integration.manager', () => ({ IntegrationManager: class {} }));
+
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { PublicAttachRenderedDto } from './dtos/public.prepublish-render.dto';
@@ -15,6 +36,8 @@ class MemoryPrisma {
   occurrences: any[] = [];
   posts: any[] = [];
   mediaRows: any[] = [];
+  intentRows: any[] = [];
+  editorialScheduleIntent: any;
   providerIdentifier = 'youtube';
 
   prePublishRenderOccurrence: any;
@@ -45,6 +68,7 @@ class MemoryPrisma {
           releaseId: null,
           releaseUrl: null,
           failureReason: null,
+          createdAt: new Date(),
           ...create,
         };
         this.occurrences.push(row);
@@ -81,7 +105,23 @@ class MemoryPrisma {
         return { count: rows.length };
       },
     };
+    this.prePublishRenderOccurrence.create = async ({ data }: any) =>
+      this.prePublishRenderOccurrence.upsert({ where: { postId_sequence: {
+        postId: data.postId, sequence: data.sequence } }, create: data });
+    this.editorialScheduleIntent = {
+      findUnique: async ({ where }: any) => this.intentRows.find((row) =>
+        where.postId !== undefined ? row.postId === where.postId :
+          row.organizationId === where.organizationId_intentId.organizationId &&
+          row.intentId === where.organizationId_intentId.intentId) ?? null,
+      create: async ({ data }: any) => {
+        const row = { createdAt: new Date(), ...data };
+        this.intentRows.push(row); return row;
+      },
+    };
     this.post = {
+      create: async ({ data }: any) => {
+        const row = { deletedAt: null, ...data }; this.posts.push(row); return row;
+      },
       findFirst: async ({ where, select }: any) => {
         const row = this.posts.find((item) => this.matches(item, where));
         if (!row) return null;
@@ -113,6 +153,8 @@ class MemoryPrisma {
           : null,
     };
   }
+
+  $queryRaw = async () => [{ now: new Date() }];
 
   $transaction = async (action: (tx: this) => Promise<any>) => action(this);
 
@@ -646,5 +688,218 @@ describe('PrePublishRenderService durable gate', () => {
       .toBe('sha256-bf381ad74fc1c555acfc9658df00d8a5732c57ed4bcc202e25d6ca5330695835');
     expect(computeRenderContentHash({ ...base, targets: [{ ...text, contentMode: 'media' }] }))
       .not.toBe(computeRenderContentHash({ ...base, targets: [text] }));
+  });
+});
+
+
+describe('overdue journal render window', () => {
+  const acceptedAt = new Date('2026-10-27T16:32:40.000Z');
+  const frozenDate = '2026-10-27T14:19:00.3851409+01:00';
+  const correlation: RenderCorrelation = { crmSocialPostId: 'crm-overdue', snapshotId: 'snapshot-frozen',
+    pharmacyGroupId: 'group-a', pharmacyId: 'pharmacy-a' };
+  let db: MemoryPrisma;
+  let service: PrePublishRenderService;
+  let validation: { validate: jest.Mock };
+  let previousFlag: string | undefined;
+  let previousSecret: string | undefined;
+  let onSleep: ((milliseconds: number) => Promise<void>) | undefined;
+  let delivered: jest.Mock;
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(acceptedAt);
+    previousFlag = process.env.HAPPYM_SCHEDULE_INTENTS_ENABLED;
+    previousSecret = process.env.HAPPYM_RENDER_TOKEN_SECRET;
+    process.env.HAPPYM_SCHEDULE_INTENTS_ENABLED = 'true';
+    process.env.HAPPYM_RENDER_TOKEN_SECRET = 'overdue-source-test-secret-more-than-32-bytes';
+    db = new MemoryPrisma(); db.providerIdentifier = 'happym-test-fixture';
+    validation = { validate: jest.fn().mockResolvedValue({ valid: true, errors: true, emptyContent: false, tooLong: false }) };
+    service = new PrePublishRenderService(db as any, validation as any);
+    onSleep = undefined;
+    for (const key of Object.keys(mockWorkflowActivities)) delete mockWorkflowActivities[key];
+    (executeChild as jest.Mock).mockReset();
+    (sleep as jest.Mock).mockReset().mockImplementation(async (milliseconds: number) => {
+      expect(typeof milliseconds).toBe('number');
+      expect(milliseconds).toBeGreaterThan(0);
+      jest.setSystemTime(new Date(Date.now() + milliseconds));
+      if (onSleep) await onSleep(milliseconds);
+    });
+    mockWorkflowActivities.getPost = async (_organizationId, postId) => ({
+      ...db.posts.find((row) => row.id === postId), integration: { providerIdentifier: db.providerIdentifier } });
+    mockWorkflowActivities.ensureRenderOccurrence = (...args: any[]) => (service.ensureOccurrence as any)(...args);
+    mockWorkflowActivities.markRenderAwaiting = (...args: any[]) => (service.markAwaiting as any)(...args);
+    mockWorkflowActivities.getRenderWorkflowState = (...args: any[]) => (service.workflowState as any)(...args);
+    mockWorkflowActivities.timeoutRenderOccurrence = (...args: any[]) => (service.timeout as any)(...args);
+    mockWorkflowActivities.beginRenderPublishing = jest.fn(async () => { throw new Error('Synthetic must not enter real delivery'); });
+    // Only the synthetic delivery activity is a stand-in. Its durable SQL journal,
+    // synthetic profiles and external/runtime behavior are outside these cases.
+    delivered = jest.fn(async (_org, postId, occurrenceId) => {
+      expect(await service.workflowState('org-a', occurrenceId)).toEqual({ status: 'ReadyToPublish' });
+      db.posts.find((row) => row.id === postId).state = 'SIMULATED';
+      db.occurrences.find((row) => row.id === occurrenceId).status = 'SIMULATED';
+      return { status: 'SimulatedPublished', postId, occurrenceId };
+    });
+    mockWorkflowActivities.deliverSyntheticFixture = delivered;
+    mockWorkflowActivities.getSyntheticFixtureReadback = async () => ({ status: 'SimulatedPublished' });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    if (previousFlag === undefined) delete process.env.HAPPYM_SCHEDULE_INTENTS_ENABLED;
+    else process.env.HAPPYM_SCHEDULE_INTENTS_ENABLED = previousFlag;
+    if (previousSecret === undefined) delete process.env.HAPPYM_RENDER_TOKEN_SECRET;
+    else process.env.HAPPYM_RENDER_TOKEN_SECRET = previousSecret;
+  });
+  async function prepared(date = frozenDate, leadTimeSeconds = 600) {
+    const value = { contract: scheduleIntentContract, commandId: 'command-overdue', crmOccurrenceId: 'crm-occ-overdue',
+      revisionId: 'revision-frozen', bindingKey: 'binding-test', post: { type: 'schedule', date,
+        shortLink: false, tags: [], posts: [{ integration: { id: 'integration-1' },
+          value: [{ content: 'Frozen synthetic caption', image: [] }], settings: {},
+          prePublishRender: { leadTimeSeconds, correlation } }] } };
+    const payloadJson = JSON.stringify(value);
+    const wire = { payloadJson, payloadHash: `sha256-${createHash('sha256').update(payloadJson).digest('hex')}` };
+    const intents = new ScheduleIntentService(db as any);
+    const receipt = await intents.create('org-a', 'intent-overdue', wire, value.post as any);
+    expect(receipt.links).toHaveLength(1);
+    const link = receipt.links[0];
+    const ensure = () => service.ensureOccurrence('org-a', link.postId, link.integrationId, 0,
+      new Date(date), leadTimeSeconds, correlation);
+    const run = () => postWorkflowV107({ taskQueue: 'source-test-only', organizationId: 'org-a', postId: link.postId });
+    return { value, wire, intents, receipt, link, ensure, run };
+  }
+  async function attachment(occurrenceId: string) {
+    const claim = await service.claim('org-a', occurrenceId, 'worker-a', 'claim-a', 900);
+    const targets: RenderTarget[] = [{ integrationId: 'integration-1', channel: 'happym-test-fixture',
+      contentMode: 'text_only', caption: 'Frozen rendered synthetic caption', media: [] }];
+    const input = { renderToken: claim.renderToken, correlation: { ...correlation }, targets,
+      renderedAtUtc: new Date().toISOString(), contentHash: '' };
+    input.contentHash = computeRenderContentHash({ occurrenceId, correlation: input.correlation, targets: input.targets, renderedAtUtc: input.renderedAtUtc });
+    return { claim, input };
+  }
+  it('wires overdue Create -> one link -> Awaiting -> valid claim/attach -> synthetic workflow branch', async () => {
+    const f = await prepared(); const first = await f.ensure();
+    expect(first).toMatchObject({ renderDeadlineUtc: new Date(acceptedAt.getTime() + 600_000).toISOString(),
+      scheduledFor: new Date(frozenDate), status: 'Scheduled' });
+    await expect(service.assertPublishAllowed('org-a', f.link.postId)).rejects.toMatchObject({ reasonCode: 'PublishBlockedNoRender' });
+    let attached = false;
+    onSleep = async () => {
+      if (attached) return; attached = true;
+      expect(delivered).not.toHaveBeenCalled();
+      expect(await service.workflowState('org-a', f.link.occurrenceId)).toEqual({ status: 'AwaitingRender' });
+      const { input, claim } = await attachment(f.link.occurrenceId);
+      expect(claim.leaseExpiresAt).toEqual(new Date(acceptedAt.getTime() + 600_000));
+      expect((await service.attach('org-a', f.link.occurrenceId, 'attach-a', input)).status).toBe('ReadyToPublish');
+    };
+    await expect(f.run()).resolves.toMatchObject({ status: 'SimulatedPublished', occurrenceId: f.link.occurrenceId });
+    expect((sleep as jest.Mock).mock.calls.map(([milliseconds]) => milliseconds)).toEqual([5000]);
+    expect(delivered).toHaveBeenCalledTimes(1); expect(executeChild).not.toHaveBeenCalled();
+    expect(validation.validate).toHaveBeenCalled();
+    expect(db.intentRows[0]).toMatchObject({ payloadJson: f.wire.payloadJson, payloadHash: f.wire.payloadHash, createdAt: acceptedAt });
+    expect(db.posts[0].publishDate).toEqual(new Date(frozenDate)); expect(db.occurrences).toHaveLength(1);
+  });
+  it('waits the finite journal budget then times out without attach or delivery', async () => {
+    const f = await prepared(); await f.run();
+    expect(Date.now()).toBe(acceptedAt.getTime() + 600_000);
+    expect((sleep as jest.Mock).mock.calls).toHaveLength(120);
+    expect(await service.workflowState('org-a', f.link.occurrenceId)).toEqual({ status: 'RenderTimedOut' });
+    expect(delivered).not.toHaveBeenCalled(); expect(executeChild).not.toHaveBeenCalled();
+  });
+  it('late dispatch consumes only the remaining first-created budget', async () => {
+    const f = await prepared(); jest.setSystemTime(new Date(acceptedAt.getTime() + 550_000));
+    await f.run();
+    expect((sleep as jest.Mock).mock.calls).toHaveLength(10);
+    expect(Date.now()).toBe(acceptedAt.getTime() + 600_000); expect(delivered).not.toHaveBeenCalled();
+  });
+  it('exact replay and a new service instance never renew creation or the deadline', async () => {
+    const f = await prepared(); const first = await f.ensure();
+    jest.setSystemTime(new Date(acceptedAt.getTime() + 601_000));
+    service = new PrePublishRenderService(db as any, validation as any);
+    expect(await f.intents.create('org-a', 'intent-overdue', f.wire, f.value.post as any)).toEqual(f.receipt);
+    expect(await f.ensure()).toEqual(first);
+    expect(db.intentRows[0].createdAt).toEqual(acceptedAt); expect(db.occurrences[0].createdAt).toEqual(acceptedAt);
+    await f.run();
+    await expect(service.claim('org-a', f.link.occurrenceId, 'worker-a', 'claim-after-restart', 300))
+      .rejects.toMatchObject({ reasonCode: 'RenderTimedOut' });
+    expect(sleep).not.toHaveBeenCalled(); expect(delivered).not.toHaveBeenCalled();
+    expect(db.posts).toHaveLength(1); expect(db.occurrences).toHaveLength(1);
+  });
+  it('future-at-creation remains on its original deadline after becoming due', async () => {
+    const scheduled = new Date(acceptedAt.getTime() + 1_200_000);
+    const f = await prepared(scheduled.toISOString());
+    expect(await f.ensure()).not.toHaveProperty('renderDeadlineUtc');
+    await service.markAwaiting('org-a', f.link.occurrenceId);
+    jest.setSystemTime(new Date(acceptedAt.getTime() + 700_000));
+    expect(await service.workflowState('org-a', f.link.occurrenceId)).toEqual({ status: 'AwaitingRender' });
+    const claim = await service.claim('org-a', f.link.occurrenceId, 'worker-a', 'future-claim', 900);
+    expect(claim.leaseExpiresAt).toEqual(scheduled);
+    jest.setSystemTime(scheduled);
+    expect(await service.workflowState('org-a', f.link.occurrenceId)).toEqual({ status: 'RenderTimedOut' });
+    expect(await f.ensure()).not.toHaveProperty('renderDeadlineUtc');
+  });
+  it('future V107 without optional deadline retains lead timer, poll timer and original publish timer', async () => {
+    const scheduled = new Date(acceptedAt.getTime() + 1_200_000);
+    const f = await prepared(scheduled.toISOString()); let attached = false;
+    expect(await f.ensure()).not.toHaveProperty('renderDeadlineUtc');
+    onSleep = async (milliseconds) => {
+      if (milliseconds !== 5000 || attached) return; attached = true;
+      const { input } = await attachment(f.link.occurrenceId);
+      await service.attach('org-a', f.link.occurrenceId, 'future-attach', input);
+    };
+    await f.run();
+    expect((sleep as jest.Mock).mock.calls.map(([milliseconds]) => milliseconds)).toEqual([600_000, 5000, 595_000]);
+    expect(Date.now()).toBe(scheduled.getTime()); expect(delivered).toHaveBeenCalledTimes(1);
+    expect(executeChild).not.toHaveBeenCalled();
+  });
+  it.each(['absent', 'organization', 'state', 'dispatch', 'creation', 'post', 'occurrence', 'integration', 'multiple', 'malformed'])(
+    'does not grant an overdue window with a %s journal proof', async (changed) => {
+      const f = await prepared(); const row = db.intentRows[0]; const links = JSON.parse(row.linksJson);
+      if (changed === 'absent') db.intentRows.length = 0;
+      if (changed === 'organization') row.organizationId = 'org-b';
+      if (changed === 'state') row.state = 'cancelled';
+      if (changed === 'dispatch') row.dispatchState = 'cancelled';
+      if (changed === 'creation') row.createdAt = new Date(acceptedAt.getTime() + 1);
+      if (['post', 'occurrence', 'integration'].includes(changed)) {
+        links[0][`${changed}Id`] = 'foreign'; row.linksJson = JSON.stringify(links);
+      }
+      if (changed === 'multiple') row.linksJson = JSON.stringify([links[0], links[0]]);
+      if (changed === 'malformed') row.linksJson = '{';
+      expect(await f.ensure()).not.toHaveProperty('renderDeadlineUtc');
+      await f.run(); expect(delivered).not.toHaveBeenCalled(); expect(executeChild).not.toHaveBeenCalled();
+      expect(await service.workflowState('org-a', f.link.occurrenceId)).toEqual({ status: 'RenderTimedOut' });
+    });
+  it('keeps an expired CRM render lease closed inside a still-open journal budget', async () => {
+    const f = await prepared(); await service.markAwaiting('org-a', f.link.occurrenceId);
+    await service.claim('org-a', f.link.occurrenceId, 'worker-a', 'short-claim', 60);
+    jest.setSystemTime(new Date(acceptedAt.getTime() + 61_000));
+    await expect(service.claim('org-a', f.link.occurrenceId, 'worker-a', 'short-claim', 900))
+      .rejects.toMatchObject({ reasonCode: 'RenderTimedOut' });
+    expect(await service.workflowState('org-a', f.link.occurrenceId)).toEqual({ status: 'RenderTimedOut' });
+    await f.run(); expect(delivered).not.toHaveBeenCalled();
+  });
+  it.each(['token', 'correlation', 'channel', 'hash'])(
+    'keeps overdue publication closed on an invalid %s attach', async (changed) => {
+      const f = await prepared(); await service.markAwaiting('org-a', f.link.occurrenceId);
+      const { input } = await attachment(f.link.occurrenceId);
+      if (changed === 'token') input.renderToken = 'foreign-token';
+      if (changed === 'correlation') input.correlation.snapshotId = 'different-snapshot';
+      if (changed === 'channel') input.targets[0].channel = 'facebook';
+      input.contentHash = computeRenderContentHash({ occurrenceId: f.link.occurrenceId, correlation: input.correlation, targets: input.targets, renderedAtUtc: input.renderedAtUtc });
+      if (changed === 'hash') input.contentHash = 'sha256-foreign';
+      await expect(service.attach('org-a', f.link.occurrenceId, 'invalid-attach', input))
+        .rejects.toMatchObject({ reasonCode: 'RenderPayloadInvalid', statusCode: changed === 'token' ? 403 : 422 });
+      expect(validation.validate).not.toHaveBeenCalled();
+      expect(await service.workflowState('org-a', f.link.occurrenceId)).toEqual({ status: 'AwaitingRender' });
+      await expect(service.assertPublishAllowed('org-a', f.link.postId)).rejects.toMatchObject({ reasonCode: 'PublishBlockedNoRender' });
+      await f.run(); expect(delivered).not.toHaveBeenCalled(); expect(executeChild).not.toHaveBeenCalled();
+    });
+  it.each([60, 3600])('pins the configured %s-second budget to creation and clamps a claim', async (seconds) => {
+    const f = await prepared(frozenDate, seconds);
+    expect(await f.ensure()).toHaveProperty('renderDeadlineUtc', new Date(acceptedAt.getTime() + seconds * 1000).toISOString());
+    await service.markAwaiting('org-a', f.link.occurrenceId);
+    jest.setSystemTime(new Date(acceptedAt.getTime() + (seconds - 10) * 1000));
+    const claim = await service.claim('org-a', f.link.occurrenceId, 'worker-a', 'near-deadline', 900);
+    expect(claim.leaseExpiresAt).toEqual(new Date(acceptedAt.getTime() + seconds * 1000));
+  });
+  it('treats equality at creation as overdue while preserving the requested instant', async () => {
+    const f = await prepared(acceptedAt.toISOString());
+    expect(await f.ensure()).toMatchObject({ scheduledFor: acceptedAt,
+      renderDeadlineUtc: new Date(acceptedAt.getTime() + 600_000).toISOString() });
   });
 });

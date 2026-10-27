@@ -85,6 +85,12 @@ export async function postWorkflowV107(input: PostWorkflowV107Input): Promise<vo
     post.renderLeadTimeSeconds,
     correlation as any
   );
+  const renderDeadline = 'renderDeadlineUtc' in occurrence
+    ? new Date(String(occurrence.renderDeadlineUtc)) : scheduledFor;
+  if (!Number.isFinite(renderDeadline.getTime()) || renderDeadline < scheduledFor) {
+    await timeoutRenderOccurrence(input.organizationId, occurrence.occurrenceId);
+    return;
+  }
   if (synthetic && post.state === 'SIMULATED')
     return getSyntheticFixtureReadback(input.organizationId, input.postId, occurrence.occurrenceId);
   if (!correlationValid) {
@@ -100,7 +106,7 @@ export async function postWorkflowV107(input: PostWorkflowV107Input): Promise<vo
   if (leadAt > Date.now()) await sleep(leadAt - Date.now());
   await markRenderAwaiting(input.organizationId, occurrence.occurrenceId);
 
-  while (Date.now() < scheduledFor.getTime()) {
+  while (Date.now() < renderDeadline.getTime()) {
     const state = await getRenderWorkflowState(
       input.organizationId,
       occurrence.occurrenceId
@@ -115,7 +121,7 @@ export async function postWorkflowV107(input: PostWorkflowV107Input): Promise<vo
     ) {
       return;
     }
-    await sleep(Math.min(5000, scheduledFor.getTime() - Date.now()));
+    await sleep(Math.min(5000, renderDeadline.getTime() - Date.now()));
   }
 
   const finalState = await getRenderWorkflowState(

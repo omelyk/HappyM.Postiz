@@ -187,3 +187,68 @@ describe('current intent dispatcher', () => {
     expect(f.row().dispatchState).toBe('pending');
   });
 });
+
+// New causal cases only: frozen overdue planning, with no publication collaborator.
+describe('overdue journal planning', () => {
+  const acceptedAt = new Date('2026-10-27T16:32:40.000Z');
+  const frozenDate = '2026-10-27T14:19:00.3851409+01:00';
+  let previousFlag: string | undefined;
+  beforeEach(() => {
+    previousFlag = process.env.HAPPYM_SCHEDULE_INTENTS_ENABLED;
+    process.env.HAPPYM_SCHEDULE_INTENTS_ENABLED = 'true';
+  });
+  afterEach(() => {
+    if (previousFlag === undefined) delete process.env.HAPPYM_SCHEDULE_INTENTS_ENABLED;
+    else process.env.HAPPYM_SCHEDULE_INTENTS_ENABLED = previousFlag;
+  });
+  function overdue() {
+    const f = fixture();
+    f.prisma.$queryRaw.mockResolvedValue([{ now: acceptedAt }]);
+    const value = envelope(); value.post.date = frozenDate;
+    const wire = request(value);
+    return { ...f, value, wire };
+  }
+  it('accepts the unchanged overdue bytes as one committed pending planning link', async () => {
+    const f = overdue();
+    const receipt = await f.service.create('org-a', 'overdue-a', f.wire, f.value.post as any);
+    expect(receipt).toMatchObject({ contract: 'editorial.schedule-intent/v1', state: 'committed', dispatchState: 'pending' });
+    expect(receipt.links).toEqual([{ integrationId: 'integration-a', postId: 'post-a', occurrenceId: 'occ-a' }]);
+    expect(f.row()).toMatchObject({ payloadJson: f.wire.payloadJson, payloadHash: f.wire.payloadHash,
+      createdAt: acceptedAt, commandId: f.value.commandId, revisionId: f.value.revisionId });
+    expect(JSON.parse(f.row().payloadJson).post.date).toBe(frozenDate);
+    expect(f.post).toHaveBeenCalledWith({ data: expect.objectContaining({
+      publishDate: new Date(frozenDate), state: 'QUEUE', renderRequired: true,
+      renderCorrelation: JSON.stringify(f.value.post.posts[0].prePublishRender.correlation) }) });
+    expect(f.occurrence).toHaveBeenCalledWith({ data: expect.objectContaining({
+      scheduledFor: new Date(frozenDate), createdAt: acceptedAt, leadTimeSeconds: 600 }) });
+    expect(f.post).toHaveBeenCalledTimes(1); expect(f.occurrence).toHaveBeenCalledTimes(1);
+    expect(f.prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+  it('lost response, exact lookup and later create replay preserve first creation and one link', async () => {
+    const f = overdue(); const tx = f.prisma.$transaction;
+    f.prisma.$transaction = async (...args: any[]) => { await tx(...args); throw new Error('overdue-response-lost'); };
+    await expect(f.service.create('org-a', 'overdue-a', f.wire, f.value.post as any)).rejects.toThrow('overdue-response-lost');
+    const receipt = await f.service.get('org-a', 'overdue-a');
+    f.prisma.$transaction = tx;
+    f.prisma.$queryRaw.mockResolvedValue([{ now: new Date(acceptedAt.getTime() + 86_400_000) }]);
+    expect(await f.service.create('org-a', 'overdue-a', f.wire, f.value.post as any)).toEqual(receipt);
+    expect(await f.service.replay('org-a', 'overdue-a', f.wire)).toEqual(receipt);
+    expect(f.row().createdAt).toEqual(acceptedAt);
+    expect(f.row().payloadJson).toBe(f.wire.payloadJson);
+    expect(f.prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(f.post).toHaveBeenCalledTimes(1); expect(f.occurrence).toHaveBeenCalledTimes(1);
+  });
+  it('never retimes the same overdue intent by replacing its frozen date', async () => {
+    const f = overdue(); await f.service.create('org-a', 'overdue-a', f.wire, f.value.post as any);
+    const changed = envelope(); changed.post.date = acceptedAt.toISOString();
+    await expect(f.service.create('org-a', 'overdue-a', request(changed), changed.post as any))
+      .rejects.toMatchObject({ code: 'schedule_intent_conflict' });
+    expect(f.row().payloadJson).toBe(f.wire.payloadJson); expect(f.post).toHaveBeenCalledTimes(1);
+  });
+  it('keeps an overdue cancellation tombstone authoritative before creation', async () => {
+    const f = overdue(); await f.service.cancel('org-a', 'overdue-a', f.wire);
+    const receipt = await f.service.create('org-a', 'overdue-a', f.wire, f.value.post as any);
+    expect(receipt).toMatchObject({ state: 'cancelled', dispatchState: 'cancelled', links: [] });
+    expect(f.post).not.toHaveBeenCalled(); expect(f.occurrence).not.toHaveBeenCalled();
+  });
+});

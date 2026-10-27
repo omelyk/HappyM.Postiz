@@ -103,7 +103,9 @@ export class ScheduleIntentService {
       if (existing) { this.samePayload(existing, request); return this.receipt(existing); }
       const [{ now }] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS now`;
       const scheduledFor = new Date(envelope.post.date);
-      if (scheduledFor <= now) throw invalid();
+      // This is a durable planning effect, including an intent delayed by an outage.
+      // Preserve the requested instant and exact frozen payload. Publication still
+      // requires the separate, current pre-publish render/consent gate.
       const target = normalized.posts[0];
       const integration = await tx.integration.findFirst({ where: {
         id: target.integration.id, organizationId, deletedAt: null, disabled: false } });
@@ -125,7 +127,7 @@ export class ScheduleIntentService {
       const occurrence = await tx.prePublishRenderOccurrence.create({ data: {
         organizationId, postId: rootPostId!, integrationId: integration.id, sequence: 0,
         scheduledFor, leadTimeSeconds: cfg.leadTimeSeconds ?? 600,
-        correlation: JSON.stringify(cfg.correlation) } });
+        correlation: JSON.stringify(cfg.correlation), createdAt: now } });
       const links: ScheduleIntentLink[] = [{ integrationId: integration.id,
         postId: rootPostId!, occurrenceId: occurrence.id }];
       const row = await tx.editorialScheduleIntent.create({ data: {
@@ -133,7 +135,7 @@ export class ScheduleIntentService {
         commandId: envelope.commandId, crmOccurrenceId: envelope.crmOccurrenceId,
         revisionId: envelope.revisionId, bindingKey: envelope.bindingKey, state: 'committed',
         postId: rootPostId!,
-        linksJson: JSON.stringify(links), dispatchState: 'pending' } });
+        linksJson: JSON.stringify(links), dispatchState: 'pending', createdAt: now } });
       // No Temporal or provider call inside this transaction.
       return this.receipt(row);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

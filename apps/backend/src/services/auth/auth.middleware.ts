@@ -8,6 +8,7 @@ import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.man
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
 import { setSentryUserContext } from '@gitroom/nestjs-libraries/sentry/initialize.sentry';
+import { initialPasswordRequired, localAdminAccessDisabled } from '@gitroom/nestjs-libraries/happym-appliance/happym.local-admin';
 import {
   happyMEmbedSessionRequired,
   isHappyMEmbedUserRequestUrl,
@@ -65,7 +66,7 @@ export class AuthMiddleware implements NestMiddleware {
         throw new HttpForbiddenException();
       }
 
-      if (!user.activated) {
+      if (!user.activated || initialPasswordRequired(user) || localAdminAccessDisabled(user)) {
         throw new HttpForbiddenException();
       }
 

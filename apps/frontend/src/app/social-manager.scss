@@ -1,0 +1,182 @@
+// Appliance-only presentation. The original hosted product and embedded CRM
+// retain their themes, permission checks and modal behavior.
+:root body.social-manager-appliance {
+  color-scheme: light;
+  color: #1e293b;
+  font-size: 14px;
+  line-height: 1.45;
+  --new-bgColor: #fff;
+  --new-bgColorInner: #fff;
+  --new-settings: #f8fafc;
+  --new-bgLineColor: #e2e8f0;
+  --new-textColor: 30 41 59;
+  --new-btn-text: #1e293b;
+  --new-textItemBlur: #64748b;
+  --new-small-strips: #f8fafc;
+  --color-primary: #fff;
+  --color-secondary: #fff;
+  --color-third: #fff;
+
+  [data-social-manager-shell] {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    min-width: 0;
+    padding: 8px;
+  }
+
+  .social-manager-sidebar {
+    color-scheme: dark;
+    background: #17202e;
+    border-radius: 8px;
+
+    #left-menu > div {
+      min-height: 0;
+      gap: 12px;
+      padding: 10px 6px;
+    }
+
+    #left-menu .blurMe {
+      min-height: 0;
+      gap: 6px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    #left-menu :is(a, button) {
+      flex-shrink: 0;
+      min-height: 44px;
+      height: 48px;
+      border-radius: 6px;
+    }
+  }
+
+  [data-social-manager-header] {
+    height: 52px;
+    flex-shrink: 0;
+    padding: 0 16px;
+
+    > div:first-child { font-size: 20px; }
+    > div:last-child { gap: 12px; }
+  }
+
+  [data-social-manager-content] {
+    overflow: auto;
+    background: #fff;
+  }
+
+  .social-manager-settings > div:first-child {
+    flex-shrink: 0;
+    width: 220px;
+    padding: 16px;
+    border-inline-end: 1px solid var(--new-bgLineColor);
+    overflow-y: auto;
+  }
+
+  .table1 :is(th, td) { padding: 8px 12px; }
+
+  :is([data-social-manager-content], [data-happym-modal-backdrop]) {
+    :where(input:not([type]), input[type='text'], input[type='password'],
+      input[type='email'], input[type='search'], input[type='number'],
+      input[type='url'], input[type='date'], input[type='time'], select, textarea) {
+      min-height: 36px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      line-height: 1.4;
+      max-width: 100%;
+    }
+
+    :where(label) { font-size: 13px; font-weight: 600; }
+    :where(button, a).bg-primary {
+      background: var(--new-btn-primary);
+      color: #fff;
+    }
+  }
+
+  :is(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid #612bd3 !important;
+    outline-offset: 2px;
+  }
+
+  [data-happym-modal-backdrop] {
+    inset: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden;
+    padding: 16px !important;
+  }
+
+  [data-social-manager-modal-frame],
+  [data-social-manager-modal-positioner] {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    inset: auto;
+  }
+
+  [data-social-manager-modal-kind] {
+    min-width: 0 !important;
+    max-width: min(var(--social-manager-modal-max-width, 100vw), calc(100vw - 32px)) !important;
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-social-manager-modal-kind='standard'] {
+    width: min(760px, 100%);
+    padding: 20px !important;
+    gap: 16px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--new-bgLineColor);
+    border-radius: 10px;
+    box-shadow: 0 16px 48px rgb(15 23 42 / 18%);
+  }
+
+  [data-social-manager-modal-title] {
+    flex-shrink: 0;
+    padding-inline-end: 24px;
+    > div:first-child { font-size: 18px; }
+  }
+
+  [data-social-manager-modal-body] {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-social-manager-modal-fullscreen='true'] [data-social-manager-modal-kind] {
+    width: 100%;
+    height: 100%;
+  }
+
+  @media (max-width: 760px) {
+    [data-social-manager-header] {
+      height: auto;
+      min-height: 52px;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 12px;
+    }
+
+    .social-manager-settings { flex-direction: column; }
+    .social-manager-settings > div:first-child {
+      width: auto;
+      border-inline-end: 0;
+      border-bottom: 1px solid var(--new-bgLineColor);
+    }
+  }
+}

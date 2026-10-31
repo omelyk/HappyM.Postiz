@@ -8,6 +8,7 @@ import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { UserDetailDto } from '@gitroom/nestjs-libraries/dtos/users/user.details.dto';
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { LOCAL_ADMIN_ID, validateLocalAdminPassword } from '@gitroom/nestjs-libraries/happym-appliance/happym.local-admin';
 
 @Injectable()
 export class UsersRepository {
@@ -17,6 +18,9 @@ export class UsersRepository {
   ) {}
 
   async switchUserCredentials(currentUserId: string, targetUserId: string) {
+    if (currentUserId === LOCAL_ADMIN_ID || targetUserId === LOCAL_ADMIN_ID) {
+      throw new Error('The installation-local administrator credentials cannot be transferred');
+    }
     const current = await this._user.model.user.findUnique({
       where: { id: currentUserId },
     });
@@ -167,6 +171,7 @@ export class UsersRepository {
   }
 
   updatePassword(id: string, password: string) {
+    if (id === LOCAL_ADMIN_ID) validateLocalAdminPassword(password);
     return this._user.model.user.update({
       where: {
         id,

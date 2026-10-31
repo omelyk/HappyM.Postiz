@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 export class YoutubeMediaFormatUnsupportedError extends Error {}
 export class YoutubeMediaTranscodeError extends Error {}
@@ -22,6 +22,44 @@ export function getYoutubeMediaFormat(
     return 'webm';
   }
   return 'unsupported';
+}
+
+export function resolveYoutubeMediaInputPath(
+  storedPath: string,
+  storageProvider = process.env.STORAGE_PROVIDER || 'local',
+  uploadDirectory = process.env.UPLOAD_DIRECTORY || ''
+): string {
+  if (storageProvider !== 'local') {
+    return storedPath;
+  }
+
+  let pathname = storedPath;
+  try {
+    pathname = new URL(storedPath).pathname;
+  } catch {
+    // Older rows may contain a public path instead of an absolute URL.
+  }
+
+  const uploadsMarker = '/uploads/';
+  const markerIndex = pathname.indexOf(uploadsMarker);
+  const relativePath =
+    markerIndex >= 0
+      ? pathname.slice(markerIndex + uploadsMarker.length)
+      : pathname.replace(/^[/\\]+/, '');
+  const root = resolve(uploadDirectory);
+  const candidate = resolve(root, decodeURIComponent(relativePath));
+  const fromRoot = relative(root, candidate);
+
+  if (
+    !uploadDirectory ||
+    isAbsolute(fromRoot) ||
+    fromRoot === '..' ||
+    fromRoot.startsWith(`..${sep}`)
+  ) {
+    throw new YoutubeMediaFormatUnsupportedError();
+  }
+
+  return candidate;
 }
 
 export async function normalizeYoutubeMedia(

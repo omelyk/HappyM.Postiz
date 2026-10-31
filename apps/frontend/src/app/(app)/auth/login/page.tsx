@@ -7,6 +7,7 @@ import {
   isHappyMApplianceMode,
 } from '@gitroom/frontend/components/happym-appliance/happym.appliance.branding';
 import { happyMDevLoginHint } from '@gitroom/nestjs-libraries/happym-appliance/happym.dev-login';
+import { ApplianceLogin } from '@gitroom/frontend/components/happym-appliance/appliance-login';
 export const metadata: Metadata = {
   title: isHappyMApplianceMode()
     ? happyMPageTitle('Login')
@@ -14,5 +15,5 @@ export const metadata: Metadata = {
   description: '',
 };
 export default async function Auth() {
-  return <Login devLoginHint={happyMDevLoginHint()} />;
+  return isHappyMApplianceMode() ? <ApplianceLogin /> : <Login devLoginHint={happyMDevLoginHint()} />;
 }

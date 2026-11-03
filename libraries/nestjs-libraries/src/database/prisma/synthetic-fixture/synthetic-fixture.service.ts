@@ -148,6 +148,20 @@ export class SyntheticFixtureService {
     return profile;
   }
 
+  // Data-plane read: organization comes from API authentication and the caller
+  // cannot choose a different post. The existing readback revalidates the full
+  // fixture scope inside its transaction; no provisioning or delivery is run.
+  async readbackForOccurrence(organizationId: string, occurrenceId: string): Promise<SyntheticReadback> {
+    this.requireIds(organizationId, occurrenceId);
+    const occurrence = await this.prisma.prePublishRenderOccurrence.findFirst({
+      where: { id: occurrenceId, organizationId,
+        integration: { is: { providerIdentifier: SYNTHETIC_PROVIDER, organizationId } } },
+      select: { postId: true },
+    });
+    if (!occurrence) throw new NotFoundException({ code: 'synthetic_scope_missing' });
+    return this.readback(organizationId, occurrence.postId, occurrenceId);
+  }
+
   async readback(organizationId: string, postId: string, occurrenceId: string): Promise<SyntheticReadback> {
     const binding = syntheticBinding(); this.requireIds(organizationId, postId, occurrenceId);
     const observed = await this.prisma.$transaction(async tx => {

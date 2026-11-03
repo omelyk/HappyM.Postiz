@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   HttpException,
   Param,
@@ -11,6 +12,7 @@ import {
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
+import { SyntheticFixtureService, SyntheticReadback } from '@gitroom/nestjs-libraries/database/prisma/synthetic-fixture/synthetic-fixture.service';
 import {
   PrePublishRenderError,
   PrePublishRenderService,
@@ -37,7 +39,10 @@ const apiCode: Record<string, string> = {
 @ApiTags('Public API - Pre-publish render')
 @Controller('/public/v1/prepublish-render/occurrences')
 export class PublicPrePublishRenderController {
-  constructor(private readonly render: PrePublishRenderService) {}
+  constructor(
+    private readonly render: PrePublishRenderService,
+    private readonly fixture: SyntheticFixtureService
+  ) {}
 
   private async mapError<T>(action: () => Promise<T>) {
     try {
@@ -95,6 +100,16 @@ export class PublicPrePublishRenderController {
     @Param('occurrenceId') occurrenceId: string
   ) {
     return this.mapError(() => this.render.get(org.id, occurrenceId));
+  }
+
+  @Get('/:occurrenceId/synthetic-receipt')
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ description: 'Current TEST synthetic delivery receipt; never provider publication.' })
+  syntheticReceipt(
+    @GetOrgFromRequest() org: Organization,
+    @Param('occurrenceId') occurrenceId: string
+  ): Promise<SyntheticReadback> {
+    return this.mapError(() => this.fixture.readbackForOccurrence(org.id, occurrenceId));
   }
 
   @Post('/:occurrenceId/claim-render')

@@ -23,13 +23,16 @@ import { RealIP } from 'nestjs-real-ip';
 import { UserAgent } from '@gitroom/nestjs-libraries/user/user.agent';
 import { Provider } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
+import { HappyMLocalAdminService } from '@gitroom/backend/services/happym-appliance/happym.local-admin.service';
+import { InitialAdminPasswordDto } from '@gitroom/nestjs-libraries/dtos/auth/initial-admin-password.dto';
 
 @ApiTags('Auth')
 @Controller('/auth')
 export class AuthController {
   constructor(
     private _authService: AuthService,
-    private _emailService: EmailService
+    private _emailService: EmailService,
+    private _localAdminService: HappyMLocalAdminService
   ) {}
 
   @Get('/can-register')
@@ -126,13 +129,20 @@ export class AuthController {
         req?.cookies?.org
       );
 
-      const { jwt, addedOrg } = await this._authService.routeAuth(
+      const result = await this._authService.routeAuth(
         body.provider,
         body,
         ip,
         userAgent,
         getOrgFromCookie
       );
+
+      response.header('Cache-Control', 'no-store');
+      if ('passwordChangeRequired' in result && result.passwordChangeRequired) {
+        response.status(200).json({ passwordChangeRequired: true, changeToken: result.changeToken });
+        return;
+      }
+      const { jwt, addedOrg } = result;
 
       response.cookie('auth', jwt, {
         domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
@@ -175,6 +185,25 @@ export class AuthController {
     } catch (e: any) {
       response.status(400).send(e.message);
     }
+  }
+
+  @Post('/initial-admin-password')
+  async initialAdminPassword(
+    @Body() body: InitialAdminPasswordDto,
+    @Res({ passthrough: false }) response: Response
+  ) {
+    response.header('Cache-Control', 'no-store');
+    const { jwt } = await this._localAdminService.changeInitialPassword(body.token, body.password);
+    response.cookie('auth', jwt, {
+      domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
+      ...(!process.env.NOT_SECURED
+        ? { secure: true, httpOnly: true, sameSite: 'none' as const }
+        : {}),
+      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
+    });
+    if (process.env.NOT_SECURED) response.header('auth', jwt);
+    response.header('reload', 'true');
+    response.status(200).json({ login: true });
   }
 
   @Post('/forgot')

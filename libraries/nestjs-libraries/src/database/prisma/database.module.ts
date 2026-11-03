@@ -1,4 +1,6 @@
+import { PostPayloadValidationService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-payload-validation.service';
 import { Global, Module } from '@nestjs/common';
+import { SyntheticFixtureService } from './synthetic-fixture/synthetic-fixture.service';
 import {
   PrismaRepository,
   PrismaService,
@@ -55,6 +57,7 @@ import { PrePublishRenderService } from '@gitroom/nestjs-libraries/database/pris
   imports: [],
   controllers: [],
   providers: [
+    SyntheticFixtureService,
     PrismaService,
     PrismaRepository,
     PrismaTransaction,
@@ -103,6 +106,7 @@ import { PrePublishRenderService } from '@gitroom/nestjs-libraries/database/pris
     AdminStatsRepository,
     AdminStatsService,
     PrePublishRenderService,
+    PostPayloadValidationService,
   ],
   get exports() {
     return this.providers;

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { Metadata } from 'next';
 import { isGeneralServerSide } from '@gitroom/helpers/utils/is.general.server.side';
 import Link from 'next/link';
+import { ApplianceSettings } from '@gitroom/frontend/components/happym-appliance/appliance-settings';
 
 const applianceMode = process.env.HAPPYM_APPLIANCE_MODE === 'true';
 export const metadata: Metadata = {
@@ -69,7 +70,11 @@ const SocialManagerApplianceSettings = () => (
 
 export default function Index() {
   if (applianceMode) {
-    return <SocialManagerApplianceSettings />;
+    return (
+      <ApplianceSettings>
+        <SocialManagerApplianceSettings />
+      </ApplianceSettings>
+    );
   }
   return <SettingsPopup />;
 }

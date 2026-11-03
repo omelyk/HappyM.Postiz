@@ -36,6 +36,8 @@ export class PostsRepository {
   searchForMissingThreeHoursPosts() {
     return this._post.model.post.findMany({
       where: {
+        // Intent-managed posts have their own durable, non-terminating dispatcher.
+        editorialScheduleIntent: { is: null },
         integration: {
           refreshNeeded: false,
           inBetweenSteps: false,
@@ -238,7 +240,7 @@ export class PostsRepository {
         ? { state: State.PUBLISHED }
         : {
             state: {
-              in: [State.QUEUE, State.DRAFT, State.PUBLISHED, State.ERROR],
+              in: [State.QUEUE, State.DRAFT, State.PUBLISHED, State.ERROR, State.SIMULATED],
             },
           };
 

@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
+import { ApplicationFailure } from '@temporalio/common';
+import { SyntheticFixtureService, SyntheticFixtureFault } from '@gitroom/nestjs-libraries/database/prisma/synthetic-fixture/synthetic-fixture.service';
 import {
   Activity,
   ActivityMethod,
@@ -20,6 +22,7 @@ import { WebhooksService } from '@gitroom/nestjs-libraries/database/prisma/webho
 import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { createHappyMWebhookHeaders } from '@gitroom/nestjs-libraries/dtos/webhooks/webhook.signature';
 import { TypedSearchAttributes } from '@temporalio/common';
+import { requireExternalPublishing } from '@gitroom/nestjs-libraries/happym-appliance/happym.publishing-safety';
 import {
   organizationId,
   postId as postIdSearchParam,
@@ -69,8 +72,28 @@ export class PostActivity {
     private _webhookService: WebhooksService,
     private _temporalService: TemporalService,
     private _subscriptionService: SubscriptionService,
-    private _prePublishRenderService: PrePublishRenderService
+    private _prePublishRenderService: PrePublishRenderService,
+    private _syntheticFixture: SyntheticFixtureService
   ) {}
+
+  @ActivityMethod()
+  async deliverSyntheticFixture(orgId: string, postId: string, occurrenceId: string) {
+    try { return await this._syntheticFixture.deliver(orgId, postId, occurrenceId); }
+    catch (error) {
+      if (error instanceof SyntheticFixtureFault)
+        throw ApplicationFailure.nonRetryable(error.code, error.code);
+      if (error instanceof HttpException && error.getStatus() >= 400 && error.getStatus() < 500)
+        throw ApplicationFailure.nonRetryable('synthetic_fixture_rejected', 'SyntheticFixtureRejected');
+      // Database/connection/cancellation errors remain UNKNOWN to the workflow.
+      // No error details, credentials, raw request bodies or guessed success.
+      throw ApplicationFailure.nonRetryable('synthetic_delivery_unknown', 'SyntheticOutcomeUnknown');
+    }
+  }
+
+  @ActivityMethod()
+  getSyntheticFixtureReadback(orgId: string, postId: string, occurrenceId: string) {
+    return this._syntheticFixture.readback(orgId, postId, occurrenceId);
+  }
 
   @ActivityMethod()
   async getIntegrationById(orgId: string, id: string) {
@@ -237,6 +260,7 @@ export class PostActivity {
     integration: Integration,
     posts: Post[]
   ) {
+    requireExternalPublishing();
     const getIntegration = this._integrationManager.getSocialIntegration(
       integration.providerIdentifier
     );
@@ -293,6 +317,7 @@ export class PostActivity {
     posts: Post[],
     allowPending: boolean
   ) {
+    requireExternalPublishing();
     await this._prePublishRenderService.assertPublishAllowed(
       integration.organizationId,
       posts[0].id
@@ -377,6 +402,7 @@ export class PostActivity {
 
   @ActivityMethod()
   async checkPostStatus(integration: Integration, pendingData: any) {
+    requireExternalPublishing();
     const getIntegration = this._integrationManager.getSocialIntegration(
       integration.providerIdentifier
     );
@@ -390,6 +416,7 @@ export class PostActivity {
 
   @ActivityMethod()
   async finalizePost(integration: Integration, pendingData: any) {
+    requireExternalPublishing();
     const getIntegration = this._integrationManager.getSocialIntegration(
       integration.providerIdentifier
     );
@@ -422,6 +449,7 @@ export class PostActivity {
 
   @ActivityMethod()
   async globalPlugs(integration: Integration) {
+    requireExternalPublishing();
     return this._postService.checkPlugs(
       integration.organizationId,
       integration.providerIdentifier,
@@ -436,6 +464,7 @@ export class PostActivity {
 
   @ActivityMethod()
   async internalPlugs(integration: Integration, settings: any) {
+    requireExternalPublishing();
     return this._postService.checkInternalPlug(
       integration,
       integration.organizationId,
@@ -446,6 +475,7 @@ export class PostActivity {
 
   @ActivityMethod()
   async sendWebhooks(postId: string, orgId: string, integrationId: string) {
+    requireExternalPublishing();
     // Webhooks are best-effort and run after the post already published, so a
     // failure here must not fail the workflow.
     try {
@@ -498,6 +528,7 @@ export class PostActivity {
     totalRuns: number;
     currentRun: number;
   }) {
+    requireExternalPublishing();
     return this._integrationService.processPlugs(data);
   }
 
@@ -511,6 +542,7 @@ export class PostActivity {
     delay: number;
     information: any;
   }) {
+    requireExternalPublishing();
     await this._integrationService.processInternalPlug(data);
   }
 
@@ -518,6 +550,7 @@ export class PostActivity {
   async refreshToken(
     integration: Integration
   ): Promise<false | AuthTokenDetails> {
+    requireExternalPublishing();
     const getIntegration = this._integrationManager.getSocialIntegration(
       integration.providerIdentifier
     );
@@ -546,6 +579,7 @@ export class PostActivity {
     integration: Integration,
     cause: string
   ): Promise<false | AuthTokenDetails> {
+    requireExternalPublishing();
     const getIntegration = this._integrationManager.getSocialIntegration(
       integration.providerIdentifier
     );

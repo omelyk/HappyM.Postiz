@@ -1,5 +1,21 @@
 # HappyM change log
 
+## 1.0.0-beta.9 — Source candidate, not released
+
+- Breaking current attach contract `prepublish-render/v3`: required target contentMode text_only/media contributes to the canonical digest; existing Public API route and lease/idempotency protocol remain.
+- Text-only requires exactly one caption target and no media/thumbnail/story sequence. Media retains1..10 plus existing Story guards.
+- Provider settings/content/media validation is shared with ordinary post validation and runs before Ready inside the serializable attach transaction; no Temporal workflow or activity ABI changes.
+- Source tests/goldens added; no build, tests, package/image release or runtime/UAT qualification claimed by this Source delivery.
+
+## Current schedule intent source candidate — 2026-10-17
+
+- Source review successor: dispatch acknowledgement checks lease expiry atomically in SQL with the database clock; normalized comment expansion is bounded again before the transaction. Two additional Source cases are prepared, without execution.
+
+- Added authenticated, organization-scoped schedule intents with an atomic post/render/acceptance transaction and exact payload replay.
+- Added cancellation tombstones and a database lease/fence dispatcher that ensures existing workflows without termination. Generic missing-post recovery excludes intent-owned posts.
+- Added a current schema candidate and prepared Source cases. Activation defaults off; no build, migration, test, provider or HA qualification is claimed for this candidate.
+
+
 ## 1.0.0-beta.8 - 2026-09-02
 
 Story-Sequence: Warning

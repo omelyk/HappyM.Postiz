@@ -134,6 +134,7 @@ export const Component: FC<{
       <div
         id={modal.id}
         data-happym-modal-backdrop
+        data-social-manager-modal-fullscreen={modal.fullScreen || undefined}
         style={{ zIndex }}
         className={clsx(
           !modal.fullScreen
@@ -143,8 +144,12 @@ export const Component: FC<{
           !isLast && '!overflow-hidden'
         )}
       >
-        <div className={clsx(modal.fullScreen && 'flex', 'relative flex-1')}>
+        <div
+          data-social-manager-modal-frame
+          className={clsx(modal.fullScreen && 'flex', 'relative flex-1')}
+        >
           <div
+            data-social-manager-modal-positioner
             className={clsx(
               modal.fullScreen
                 ? 'flex flex-1'
@@ -154,6 +159,7 @@ export const Component: FC<{
             <div
               role="dialog"
               aria-modal="true"
+              data-social-manager-modal-kind="custom"
               className={clsx(
                 modal.fullScreen ? 'w-full h-full flex-1' : 'mx-auto py-[48px]'
               )}
@@ -174,6 +180,7 @@ export const Component: FC<{
       <div
         id={modal.id}
         data-happym-modal-backdrop
+        data-social-manager-modal-fullscreen={modal.fullScreen || undefined}
         onClick={closeModalFunction}
         style={{ zIndex }}
         className={clsx(
@@ -181,8 +188,9 @@ export const Component: FC<{
           !modal.fullScreen && 'pb-[50px]'
         )}
       >
-        <div className="relative flex-1">
+        <div data-social-manager-modal-frame className="relative flex-1">
           <div
+            data-social-manager-modal-positioner
             style={
               modal.top
                 ? { paddingTop: modal.top, paddingBottom: modal.top }
@@ -203,6 +211,7 @@ export const Component: FC<{
             <div
               role="dialog"
               aria-modal="true"
+              data-social-manager-modal-kind="standard"
               className={clsx(
                 !modal.removeLayout && 'gap-[40px] p-[32px]',
                 'bg-newBgColorInner mx-auto flex flex-col w-fit rounded-[24px] relative',
@@ -213,12 +222,20 @@ export const Component: FC<{
                 style: {
                   ...(modal.size ? { width: modal.size } : {}),
                   ...(modal.height ? { height: modal.height } : {}),
-                  ...(modal.maxSize ? { maxWidth: modal.maxSize } : {}),
-                },
+                  ...(modal.maxSize
+                    ? {
+                        maxWidth: modal.maxSize,
+                        '--social-manager-modal-max-width':
+                          typeof modal.maxSize === 'number'
+                            ? `${modal.maxSize}px`
+                            : modal.maxSize,
+                      }
+                    : {}),
+                } as React.CSSProperties,
               })}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center">
+              <div data-social-manager-modal-title className="flex items-center">
                 <div className="text-[24px] font-[600] flex-1">
                   {modal.title}
                 </div>
@@ -228,6 +245,7 @@ export const Component: FC<{
                     <button
                       className="outline-none absolute end-[20px] top-[20px] mantine-UnstyledButton-root mantine-ActionIcon-root hover:bg-tableBorder cursor-pointer mantine-Modal-close mantine-1dcetaa"
                       type="button"
+                      aria-label="Close dialog"
                       onClick={closeModalFunction}
                     >
                       <svg
@@ -249,6 +267,7 @@ export const Component: FC<{
                 ) : null}
               </div>
               <div
+                data-social-manager-modal-body
                 className={clsx(
                   'whitespace-pre-line',
                   !!modal.height && !!modal.size && 'flex flex-1 flex-col'

@@ -4,15 +4,18 @@ import 'react-tooltip/dist/react-tooltip.css';
 import '@copilotkit/react-ui/styles.css';
 import LayoutContext from '@gitroom/frontend/components/layout/layout.context';
 import { ReactNode } from 'react';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import localFont from 'next/font/local';
 import clsx from 'clsx';
 import { VariableContextComponent } from '@gitroom/react/helpers/variable.context';
 import UtmSaver from '@gitroom/helpers/utils/utm.saver';
 
-const jakartaSans = Plus_Jakarta_Sans({
-  weight: ['600', '500'],
-  style: ['normal', 'italic'],
-  subsets: ['latin'],
+const jakartaSans = localFont({
+  src: [
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '500', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Regular-Variable.ttf', weight: '600', style: 'normal' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '500', style: 'italic' },
+    { path: '../../fonts/PlusJakartaSans-Italic-Variable.ttf', weight: '600', style: 'italic' },
+  ],
 });
 
 export default async function AppLayout({ children }: { children: ReactNode }) {

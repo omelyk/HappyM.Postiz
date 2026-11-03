@@ -2,6 +2,11 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMinSize,
+  ArrayMaxSize,
+  Validate,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
   IsArray,
   IsIn,
   IsInt,
@@ -44,13 +49,31 @@ export class PublicRenderTargetExtrasDto {
   @IsOptional() @IsString() thumbnailMediaId?: string;
 }
 
+@ValidatorConstraint({ name: 'renderTargetContent', async: false })
+export class RenderTargetContentConstraint implements ValidatorConstraintInterface {
+  validate(media: unknown, args: ValidationArguments): boolean {
+    const target = args.object as PublicRenderTargetDto;
+    if (!Array.isArray(media)) return false;
+    if (target.contentMode === 'text_only')
+      return typeof target.caption === 'string' && target.caption.trim().length > 0 &&
+        media.length === 0 && target.publishMode === undefined &&
+        target.extras?.thumbnailMediaId === undefined;
+    return target.contentMode === 'media' && media.length >= 1 && media.length <= 10;
+  }
+  defaultMessage(): string { return 'The rendered content mode and media do not match.'; }
+}
+
 export class PublicRenderTargetDto {
+  @IsIn(['text_only', 'media'])
+  @ApiProperty({ enum: ['text_only', 'media'] })
+  contentMode!: 'text_only' | 'media';
   @IsString() @IsNotEmpty() integrationId!: string;
   @IsString() @IsNotEmpty() channel!: string;
   @IsString() caption!: string;
 
   @IsArray()
-  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @Validate(RenderTargetContentConstraint)
   @ValidateNested({ each: true })
   @Type(() => PublicRenderedMediaDto)
   media!: PublicRenderedMediaDto[];
@@ -75,6 +98,7 @@ export class PublicAttachRenderedDto {
 
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(1)
   @ValidateNested({ each: true })
   @Type(() => PublicRenderTargetDto)
   targets!: PublicRenderTargetDto[];

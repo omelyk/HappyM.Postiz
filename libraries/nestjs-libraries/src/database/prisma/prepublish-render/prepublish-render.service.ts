@@ -1,3 +1,4 @@
+import { PostPayloadValidationService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-payload-validation.service';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
@@ -36,6 +37,7 @@ export type RenderTarget = {
   integrationId: string;
   channel: string;
   caption: string;
+  contentMode: 'text_only' | 'media';
   media: Array<{ mediaId: string; kind: 'image' | 'video'; mime: string }>;
   extras?: { youtubeTitle?: string; thumbnailMediaId?: string };
   publishMode?: 'story_sequence';
@@ -67,6 +69,7 @@ const responseStatus = (status: PrePublishRenderStatus) =>
     FAILED: 'Failed',
     RENDER_TIMED_OUT: 'RenderTimedOut',
     CANCELLED: 'Cancelled',
+    SIMULATED: 'SimulatedPublished',
   }[status]);
 
 function canonicalize(value: unknown): string {
@@ -96,7 +99,10 @@ export function computeRenderContentHash(input: {
 
 @Injectable()
 export class PrePublishRenderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly payloadValidation: PostPayloadValidationService
+  ) {}
 
   private secret() {
     const secret =
@@ -164,6 +170,32 @@ export class PrePublishRenderService {
     };
   }
 
+  // A journal accepted already overdue owns one finite execution window. Its
+  // requested calendar instant never moves, and replay cannot renew createdAt.
+  // Future-at-creation and non-journal occurrences keep their original deadline.
+  private async renderDeadline(
+    occurrence: { id: string; organizationId: string; postId: string; integrationId: string;
+      scheduledFor: Date; createdAt: Date; leadTimeSeconds: number },
+    db: Pick<PrismaService, 'editorialScheduleIntent'>
+  ): Promise<Date> {
+    const requested = occurrence.scheduledFor;
+    const created = occurrence.createdAt instanceof Date ? occurrence.createdAt.getTime() : NaN;
+    if (!Number.isFinite(created) || requested.getTime() > created) return requested;
+    const seconds = occurrence.leadTimeSeconds;
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 3600) return requested;
+    const intent = await db.editorialScheduleIntent.findUnique({ where: { postId: occurrence.postId },
+      select: { organizationId: true, state: true, dispatchState: true, linksJson: true, createdAt: true } });
+    if (!intent || intent.organizationId !== occurrence.organizationId || intent.state !== 'committed'
+      || !['pending', 'started'].includes(intent.dispatchState)
+      || !(intent.createdAt instanceof Date) || intent.createdAt.getTime() !== created) return requested;
+    let links: unknown;
+    try { links = JSON.parse(intent.linksJson); } catch { return requested; }
+    if (!Array.isArray(links) || links.length !== 1 || !links[0]
+      || links[0].postId !== occurrence.postId || links[0].occurrenceId !== occurrence.id
+      || links[0].integrationId !== occurrence.integrationId) return requested;
+    return new Date(created + seconds * 1000);
+  }
+
   async ensureOccurrence(
     organizationId: string,
     postId: string,
@@ -186,7 +218,12 @@ export class PrePublishRenderService {
       },
       update: {},
     });
-    return this.view(occurrence);
+    const view = this.view(occurrence);
+    const deadline = await this.renderDeadline(occurrence, this.prisma);
+    // This optional activity-result field is absent for every historical future
+    // occurrence, so their recorded workflow timer sequence remains unchanged.
+    return deadline > occurrence.scheduledFor
+      ? { ...view, renderDeadlineUtc: deadline.toISOString() } : view;
   }
 
   async get(organizationId: string, occurrenceId: string) {
@@ -217,6 +254,7 @@ export class PrePublishRenderService {
           Failed: 'FAILED',
           RenderTimedOut: 'RENDER_TIMED_OUT',
           Cancelled: 'CANCELLED',
+          SimulatedPublished: 'SIMULATED',
         }).find(([key]) => key === filters.status)?.[1] as
           | PrePublishRenderStatus
           | undefined)
@@ -275,9 +313,10 @@ export class PrePublishRenderService {
             'The occurrence was cancelled.'
           );
         }
+        const deadline = await this.renderDeadline(occurrence, tx);
         if (
           occurrence.status === 'RENDER_TIMED_OUT' ||
-          occurrence.scheduledFor <= now
+          deadline <= now
         ) {
           throw new PrePublishRenderError(
             'RenderTimedOut',
@@ -328,9 +367,9 @@ export class PrePublishRenderService {
           now.getTime() + Math.min(Math.max(leaseSeconds, 60), 900) * 1000
         );
         const expiresAt =
-          requestedExpiry < occurrence.scheduledFor
+          requestedExpiry < deadline
             ? requestedExpiry
-            : occurrence.scheduledFor;
+            : deadline;
         const renderToken = this.token(
           occurrence.id,
           idempotencyKey,
@@ -375,10 +414,58 @@ export class PrePublishRenderService {
         'The render occurrence was not found.'
       );
     }
+    // Validate the current wire contract/hash even on an idempotent replay.
+    const target = input.targets?.[0];
+    if (
+      !Array.isArray(input.targets) || input.targets.length !== 1 || !target ||
+      target.integrationId !== occurrence.integrationId ||
+      typeof target.caption !== 'string' ||
+      (target.publishMode !== 'story_sequence' && !target.caption.trim()) ||
+      !Array.isArray(target.media) ||
+      !['text_only', 'media'].includes(target.contentMode) ||
+      (target.contentMode === 'text_only' &&
+        (!target.caption.trim() || target.media.length !== 0 ||
+          target.publishMode !== undefined || target.extras?.thumbnailMediaId !== undefined)) ||
+      (target.contentMode === 'media' && (target.media.length < 1 || target.media.length > 10)) ||
+      /\{\{\s*(?:ds_|env_)/i.test(target.caption) ||
+      target.media.some((item) => !item || typeof item.mediaId !== 'string' || !item.mediaId ||
+        !['image', 'video'].includes(item.kind) || typeof item.mime !== 'string' || !item.mime ||
+        /\.hmproj(?:$|[?#])/i.test(item.mediaId))
+    ) {
+      throw new PrePublishRenderError(
+        'RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+        'The rendered target is incomplete or unresolved.'
+      );
+    }
+    const renderedAt = new Date(input.renderedAtUtc);
+    if (
+      Number.isNaN(renderedAt.getTime()) ||
+      renderedAt.getTime() > Date.now() + 5 * 60 * 1000
+    ) {
+      throw new PrePublishRenderError(
+        'RenderPayloadInvalid',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'The rendered timestamp is invalid.'
+      );
+    }
+    const expectedHash = computeRenderContentHash({
+      occurrenceId,
+      correlation: input.correlation,
+      targets: input.targets,
+      renderedAtUtc: input.renderedAtUtc,
+    });
+    if (input.contentHash !== expectedHash) {
+      throw new PrePublishRenderError(
+        'RenderPayloadInvalid',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'The rendered content hash does not match the payload.'
+      );
+    }
+
     if (
       occurrence.attachIdempotencyKey === idempotencyKey &&
       occurrence.contentHash === input.contentHash &&
-      ['READY_TO_PUBLISH', 'PUBLISHING', 'PUBLISHED'].includes(
+      ['READY_TO_PUBLISH', 'PUBLISHING', 'PUBLISHED', 'SIMULATED'].includes(
         occurrence.status
       )
     ) {
@@ -418,49 +505,6 @@ export class PrePublishRenderService {
         'The render correlation does not match the occurrence.'
       );
     }
-    if (
-      input.targets?.length !== 1 ||
-      input.targets[0].integrationId !== occurrence.integrationId ||
-      (input.targets[0].publishMode !== 'story_sequence' &&
-        !input.targets[0].caption?.trim()) ||
-      !input.targets[0].media?.length ||
-      /\{\{\s*(?:ds_|env_)/i.test(input.targets[0].caption) ||
-      input.targets[0].media.some((item) =>
-        /\.hmproj(?:$|[?#])/i.test(item.mediaId)
-      )
-    ) {
-      throw new PrePublishRenderError(
-        'RenderPayloadInvalid',
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        'The rendered target is incomplete or unresolved.'
-      );
-    }
-    const renderedAt = new Date(input.renderedAtUtc);
-    if (
-      Number.isNaN(renderedAt.getTime()) ||
-      renderedAt.getTime() > Date.now() + 5 * 60 * 1000
-    ) {
-      throw new PrePublishRenderError(
-        'RenderPayloadInvalid',
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        'The rendered timestamp is invalid.'
-      );
-    }
-    const expectedHash = computeRenderContentHash({
-      occurrenceId,
-      correlation: input.correlation,
-      targets: input.targets,
-      renderedAtUtc: input.renderedAtUtc,
-    });
-    if (input.contentHash !== expectedHash) {
-      throw new PrePublishRenderError(
-        'RenderPayloadInvalid',
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        'The rendered content hash does not match the payload.'
-      );
-    }
-
-    const target = input.targets[0];
     if (target.publishMode && target.publishMode !== 'story_sequence') {
       throw new PrePublishRenderError(
         'StorySequenceInvalid',
@@ -495,7 +539,7 @@ export class PrePublishRenderService {
     }
     if (
       target.publishMode === 'story_sequence' &&
-      !['facebook', 'instagram', 'instagram-standalone'].includes(
+      !['facebook', 'instagram', 'instagram-standalone', 'happym-test-fixture'].includes(
         integration.providerIdentifier
       )
     ) {
@@ -589,7 +633,18 @@ export class PrePublishRenderService {
         let settings: Record<string, unknown> = {};
         try {
           settings = JSON.parse(post.settings || '{}');
-        } catch {}
+        } catch {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'The scheduled provider settings are invalid.');
+        }
+        if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY, 'The scheduled provider settings are invalid.');
+        }
+        if (target.contentMode === 'text_only' &&
+            (settings.story_sequence || settings.thumbnail)) {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'Text-only content cannot retain a media presentation.');
+        }
         if (
           target.publishMode === 'story_sequence' &&
           settings.post_type !== 'story'
@@ -610,6 +665,41 @@ export class PrePublishRenderService {
                 process.env.NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY || ''
               ).replace(/^\//, '')}${thumbnail.path}`
           : undefined;
+        const finalSettings = {
+          ...settings,
+          ...(target.publishMode === 'story_sequence' ? { story_sequence: true } : {}),
+          ...(target.extras?.youtubeTitle ? { title: target.extras.youtubeTitle } : {}),
+          ...(thumbnail ? { thumbnail: { id: thumbnail.id, path: thumbnailPath } } : {}),
+        };
+        // Re-read inside the same serializable transaction as ReadyToPublish.
+        const currentIntegration = await tx.integration.findFirst({
+          where: { id: target.integrationId, organizationId, deletedAt: null },
+          select: { id: true, providerIdentifier: true, name: true, additionalSettings: true },
+        });
+        if (!currentIntegration || currentIntegration.providerIdentifier !== target.channel) {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'The scheduled integration no longer matches the rendered target.');
+        }
+        let validation;
+        try {
+          validation = await this.payloadValidation.validate(currentIntegration, {
+          settings: finalSettings,
+          value: [{ content: target.caption, image: target.media.map((item) => ({
+            path: byId.get(item.mediaId)!.path,
+          })) }],
+          });
+        } catch {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'The final content is not accepted by the scheduled provider.');
+        }
+        if (validation.valid !== true || validation.errors !== true ||
+            validation.emptyContent || validation.tooLong) {
+          throw new PrePublishRenderError('RenderPayloadInvalid', HttpStatus.UNPROCESSABLE_ENTITY,
+            'The final content is not accepted by the scheduled provider.');
+        }
+        if (!current.leaseExpiresAt || current.leaseExpiresAt <= new Date()) {
+          throw new PrePublishRenderError('RenderTimedOut', HttpStatus.GONE, 'The render lease has expired.');
+        }
         await tx.post.update({
           where: { id: post.id },
           data: {
@@ -621,18 +711,7 @@ export class PrePublishRenderService {
                 type: item.kind,
               }))
             ),
-            settings: JSON.stringify({
-              ...settings,
-              ...(target.publishMode === 'story_sequence'
-                ? { story_sequence: true }
-                : {}),
-              ...(target.extras?.youtubeTitle
-                ? { title: target.extras.youtubeTitle }
-                : {}),
-              ...(thumbnail
-                ? { thumbnail: { id: thumbnail.id, path: thumbnailPath } }
-                : {}),
-            }),
+            settings: JSON.stringify(finalSettings),
           },
         });
         const ready = await tx.prePublishRenderOccurrence.update({
@@ -681,12 +760,13 @@ export class PrePublishRenderService {
       where: { id: occurrenceId, organizationId },
     });
     if (!occurrence) return { status: 'Missing' };
+    const waiting = ['SCHEDULED', 'AWAITING_RENDER'].includes(occurrence.status);
+    const deadline = waiting ? await this.renderDeadline(occurrence, this.prisma) : occurrence.scheduledFor;
     if (
       (occurrence.status === 'AWAITING_RENDER' &&
         occurrence.leaseExpiresAt &&
         occurrence.leaseExpiresAt <= new Date()) ||
-      (['SCHEDULED', 'AWAITING_RENDER'].includes(occurrence.status) &&
-        occurrence.scheduledFor <= new Date())
+      (waiting && deadline <= new Date())
     ) {
       await this.timeout(organizationId, occurrenceId);
       return { status: 'RenderTimedOut' };

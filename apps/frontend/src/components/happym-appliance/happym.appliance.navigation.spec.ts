@@ -1,6 +1,7 @@
 import {
   happyMApplianceHomePath,
   shouldCloseLaunchesPopup,
+  isApplianceAdministrator,
 } from './happym.appliance.navigation';
 
 describe('Social Manager appliance navigation', () => {
@@ -18,5 +19,26 @@ describe('Social Manager appliance navigation', () => {
     expect(shouldCloseLaunchesPopup(true, 'Connected', null)).toBe(true);
     expect(shouldCloseLaunchesPopup(true, null, 'true')).toBe(true);
     expect(shouldCloseLaunchesPopup(false, 'Connected', null)).toBe(false);
+  });
+});
+
+describe('Social Manager appliance administrator exposure', () => {
+  it('exposes original administration for the database SuperAdmin in its current SuperAdmin membership', () => {
+    expect(isApplianceAdministrator({
+      isSuperAdmin: true, role: 'SUPERADMIN', orgId: 'assigned-organization',
+    })).toBe(true);
+  });
+
+  it.each([
+    undefined,
+    null,
+    { role: 'SUPERADMIN', orgId: 'assigned-organization' },
+    { isSuperAdmin: false, role: 'SUPERADMIN', orgId: 'assigned-organization' },
+    { isSuperAdmin: true, role: 'ADMIN', orgId: 'assigned-organization' },
+    { isSuperAdmin: true, role: 'USER', orgId: 'assigned-organization' },
+    { isSuperAdmin: true, role: 'SUPERADMIN' },
+    { isSuperAdmin: true, role: 'SUPERADMIN', orgId: '' },
+  ])('retains the restricted appliance landing for an unqualified context %#', (user) => {
+    expect(isApplianceAdministrator(user)).toBe(false);
   });
 });

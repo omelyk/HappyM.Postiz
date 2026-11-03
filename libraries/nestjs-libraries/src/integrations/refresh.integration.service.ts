@@ -7,6 +7,7 @@ import {
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import { TemporalService } from 'nestjs-temporal-core';
+import { requireExternalPublishing } from '@gitroom/nestjs-libraries/happym-appliance/happym.publishing-safety';
 
 @Injectable()
 export class RefreshIntegrationService {
@@ -17,6 +18,7 @@ export class RefreshIntegrationService {
     private _temporalService: TemporalService
   ) {}
   async refresh(integration: Integration, cause = ''): Promise<false | AuthTokenDetails> {
+    requireExternalPublishing();
     const socialProvider = this._integrationManager.getSocialIntegration(
       integration.providerIdentifier
     );

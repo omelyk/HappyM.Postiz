@@ -13,11 +13,15 @@ import { PublicAuthMiddleware } from '@gitroom/backend/services/auth/public.auth
 import { PublicChatController } from '@gitroom/backend/public-api/routes/v1/public.chat.controller';
 import { PublicChatService } from '@gitroom/backend/public-api/services/public.chat.service';
 import { PublicPrePublishRenderController } from '@gitroom/backend/public-api/routes/v1/public.prepublish-render.controller';
+import { PublicScheduleIntentController } from '@gitroom/backend/public-api/routes/v1/public.schedule-intent.controller';
+import { ScheduleIntentService } from '@gitroom/nestjs-libraries/database/prisma/schedule-intents/schedule-intent.service';
+import { ScheduleIntentDispatcher } from '@gitroom/nestjs-libraries/database/prisma/schedule-intents/schedule-intent.dispatcher';
 
 const authenticatedController = [
   PublicIntegrationsController,
   PublicChatController,
   PublicPrePublishRenderController,
+  PublicScheduleIntentController,
 ];
 @Module({
   imports: [UploadModule],
@@ -32,6 +36,8 @@ const authenticatedController = [
     CodesService,
     IntegrationManager,
     PublicChatService,
+    ScheduleIntentService,
+    ScheduleIntentDispatcher,
   ],
   get exports() {
     return [...this.imports, ...this.providers];

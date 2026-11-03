@@ -1,3 +1,4 @@
+import { PostPayloadValidationService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-payload-validation.service';
 import {
   BadRequestException,
   Injectable,
@@ -50,11 +51,8 @@ import { RefreshToken } from '@gitroom/nestjs-libraries/integrations/social.abst
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 import { stripLinks } from '@gitroom/helpers/utils/strip.links';
-import { validate } from 'class-validator';
-import { plainToInstance } from 'class-transformer';
-import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
-import { weightedLength } from '@gitroom/helpers/utils/count.length';
 import { PrePublishRenderService } from '@gitroom/nestjs-libraries/database/prisma/prepublish-render/prepublish-render.service';
+import { SYNTHETIC_PROVIDER, SyntheticFixtureService } from '../synthetic-fixture/synthetic-fixture.service';
 
 type PostWithConditionals = Post & {
   integration?: Integration;
@@ -73,7 +71,9 @@ export class PostsService {
     private _openaiService: OpenaiService,
     private _temporalService: TemporalService,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _prePublishRenderService: PrePublishRenderService
+    private _prePublishRenderService: PrePublishRenderService,
+    private _syntheticFixture: SyntheticFixtureService,
+    private _postPayloadValidationService: PostPayloadValidationService
   ) {}
 
   searchForMissingThreeHoursPosts() {
@@ -797,97 +797,9 @@ export class PostsService {
           );
         }
 
-        const provider = this._integrationManager.getSocialIntegration(
-          integration.providerIdentifier
-        );
-
-        let additionalSettings: any[] = [];
-        try {
-          additionalSettings = JSON.parse(
-            integration.additionalSettings || '[]'
-          );
-        } catch {
-          additionalSettings = [];
-        }
-
-        const settings = post.settings || {};
-        const media = (post.value || []).map((p) => p.image || []);
-
-        // Settings DTO validation — mirrors the client `form.trigger()`.
-        let valid = true;
-        let settingsError = '';
-        if (provider?.dto) {
-          const instance = plainToInstance(provider.dto, settings, {
-            enableImplicitConversion: false,
-          });
-          const validationErrors = await validate(instance as object, {
-            skipMissingProperties: false,
-          });
-          settingsError = this.firstValidationError(validationErrors);
-          valid = validationErrors.length === 0;
-        }
-
-        // Provider-specific media validation (the old client `checkValidity`).
-        let errors: string | true = true;
-        try {
-          errors = await provider.checkValidity(
-            media,
-            settings,
-            additionalSettings
-          );
-        } catch (err: any) {
-          errors = err?.message || 'Invalid media';
-        }
-
-        const maximumCharacters = provider.maxLength(
-          additionalSettings,
-          settings
-        );
-        const isX = integration.providerIdentifier === 'x';
-
-        const emptyContent = (post.value || []).some((a) => {
-          const strip = stripHtmlValidation('normal', a.content || '', true);
-          const length = isX ? weightedLength(strip) : strip.length;
-          return length === 0 && (a.image || []).length === 0;
-        });
-
-        const tooLong = (post.value || []).some((a) => {
-          const strip = stripHtmlValidation('normal', a.content || '', true);
-          const weighted = isX ? weightedLength(strip) : strip.length;
-          const totalCharacters =
-            weighted > strip.length ? weighted : strip.length;
-          return totalCharacters > (maximumCharacters || 1000000);
-        });
-
-        return {
-          id: integration.id,
-          identifier: integration.providerIdentifier,
-          name: integration.name,
-          valid,
-          settingsError,
-          errors,
-          emptyContent,
-          tooLong,
-          maximumCharacters,
-        };
+        return this._postPayloadValidationService.validate(integration, post);
       })
     );
-  }
-
-  /** Returns the first class-validator message (incl. nested children), or ''. */
-  private firstValidationError(errors: any[]): string {
-    for (const e of errors || []) {
-      if (e?.constraints) {
-        return Object.values(e.constraints as Record<string, string>)[0] || '';
-      }
-      const child = e?.children?.length
-        ? this.firstValidationError(e.children)
-        : '';
-      if (child) {
-        return child;
-      }
-    }
-    return '';
   }
 
   // A schedule-type save targeting an already-PUBLISHED post republishes it to
@@ -901,6 +813,8 @@ export class PostsService {
     } | null,
     source: 'createPost' | 'changeDate'
   ) {
+    if (post?.state === 'SIMULATED')
+      throw new BadRequestException({ code: 'synthetic_completed_post_immutable' });
     if (post?.state !== 'PUBLISHED') {
       return;
     }
@@ -925,6 +839,30 @@ export class PostsService {
     creationMethod: CreationMethod,
     keepGroup = false
   ): Promise<any[]> {
+    // Terminal synthetic history cannot be moved to another integration or
+    // edited through draft/update/republish. Check every existing row before
+    // provider resolution or any optional conversion/persistence side effect.
+    for (const post of body.posts)
+      for (const value of post.value || [])
+        if (value.id && (await this._postRepository.getPostById(value.id, orgId))?.state === 'SIMULATED')
+          throw new BadRequestException({ code: 'synthetic_completed_post_immutable' });
+    // Resolve actual stored channels before short-link conversion, post writes,
+    // workflow launch or any other optional work. Client __type is not authority.
+    const actualIntegrations = await Promise.all(body.posts.map(post =>
+      this._integrationService.getIntegrationById(orgId, post.integration.id)));
+    if (actualIntegrations.some(integration => integration?.providerIdentifier === SYNTHETIC_PROVIDER)) {
+      if (actualIntegrations.some(integration => !integration || integration.providerIdentifier !== SYNTHETIC_PROVIDER)
+        || body.shortLink || body.republish || body.order || (body.inter != null && body.inter !== 0)
+        || body.posts.some(post => !post.prePublishRender || post.value.length !== 1
+          || post.settings?.__type !== SYNTHETIC_PROVIDER
+          || Object.keys(post.settings || {}).some(key => key !== '__type')))
+        throw new BadRequestException({ code: 'synthetic_fixture_external_options_forbidden' });
+      for (let index = 0; index < actualIntegrations.length; index++) {
+        this._syntheticFixture.requireIntegration(actualIntegrations[index]!, orgId);
+      }
+    } else if (body.posts.some(post => post.settings?.__type === SYNTHETIC_PROVIDER)) {
+      throw new BadRequestException({ code: 'synthetic_fixture_integration_mismatch' });
+    }
     const postList = [];
     for (const post of body.posts) {
       if (
@@ -1170,6 +1108,8 @@ export class PostsService {
       throw new BadRequestException('Post not found');
     }
 
+    if (getPostById.state === 'SIMULATED')
+      throw new BadRequestException({ code: 'synthetic_completed_post_immutable' });
     const state: State = status === 'draft' ? 'DRAFT' : 'QUEUE';
     await this._postRepository.changeState(id, state);
 
@@ -1194,6 +1134,8 @@ export class PostsService {
   ) {
     const getPostById = await this._postRepository.getPostById(id, orgId);
 
+    if (getPostById?.state === 'SIMULATED')
+      throw new BadRequestException({ code: 'synthetic_completed_post_immutable' });
     if (action === 'schedule' && !republish) {
       this.guardAgainstRepublish(getPostById, 'changeDate');
     }
